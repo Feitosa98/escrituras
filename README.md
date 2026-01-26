@@ -1,77 +1,78 @@
 # Sistema de Controle de Escrituras
 
-Sistema moderno para gerenciamento de escrituras cartorárias, desenvolvido com React e Vite.
+Sistema profissional para gerenciamento de escrituras cartorárias, desenvolvido com arquitetura moderna e segura.
 
 ## 🚀 Funcionalidades
 
 - **Dashboard**: Estatísticas em tempo real e gráficos interativos.
-- **Listagem Completa**: Tabela com busca, filtros avançados e ordenação.
-- **Cadastro Simplificado**: Formulário intuitivo com validação de duplicatas.
-- **Visualização Detalhada**: Página exclusiva para conferência de dados.
-- **Importação/Exportação**: Suporte a Excel, PDF e Backup JSON.
-- **Tema**: Modo claro e escuro.
-- **Design Web**: Interface responsiva e moderna.
+- **Consultas Avançadas**: Busca rápida, filtros por período e ordenação.
+- **Gestão Completa**: Cadastro, edição e controle de usuários com permissões (Admin/Editor/Visualizador).
+- **Segurança**: Autenticação robusta (JWT), hash de senhas, auditoria de ações e logs de integridade.
+- **Relatórios**: Exportação para Excel, PDF e sistema de Metas mensais.
+- **Design**: Interface moderna, modo escuro/claro e totalmente responsiva.
 
-## 🛠️ Tecnologias
+## 🛠️ Stack Tecnológica
 
-- **Frontend**: React 18 + Vite
-- **Estilização**: CSS Modules / Variáveis CSS (Design System)
-- **Banco de Dados**: IndexedDB (via Dexie.js)
-- **Gráficos**: Recharts
-- **Ícones**: Lucide React
+- **Frontend**: React 18 + Vite + Recharts + Lucide Icons
+- **Backend**: Node.js + Express
+- **Banco de Dados**: SQLite (com better-sqlite3)
+- **Segurança**: Bcrypt + JWT + Helmet + Rate Limiting
 - **Utilitários**: SheetJS (Excel), jsPDF (PDF)
 
-## 📦 Instalação e Execução
+## 📦 Como Executar (Do Zero)
 
-Necessário ter o [Node.js](https://nodejs.org/) instalado.
+Siga estes passos para rodar o projeto em sua máquina após baixar do GitHub:
 
-1. **Instale as dependências:**
-   ```bash
-   npm install
-   ```
+### 1. Pré-requisitos
+Certifique-se de ter o [Node.js](https://nodejs.org/) (versão 18 ou superior) instalado.
 
-2. **Inicie o servidor de desenvolvimento:**
-   ```bash
-   npm run dev
-   ```
+### 2. Instalação
+Abra o terminal na pasta do projeto e instale as dependências:
+```bash
+npm install
+```
 
-3. **Acesse no navegador:**
-   O terminal mostrará o link, geralmente: `http://localhost:5173`
+### 3. Build (Construção)
+Compile o frontend para produção (necessário porque o backend serve os arquivos estáticos):
+```bash
+npm run build
+```
 
-## 📖 Como Usar
+### 4. Executar
+Inicie o servidor backend:
+```bash
+node backend/server.js
+```
+O servidor iniciará em `http://localhost:3001`.
 
-### Importar Dados Antigos
-1. Vá para a página **Importar**.
-2. Selecione sua planilha Excel antiga (formato compatível).
-3. Aguarde o processamento.
+---
 
-### Cadastrar Nova Escritura
-1. Clique em **Nova Escritura**.
-2. Preencha os campos obrigatórios.
-3. O sistema avisará se houver duplicidade de Livro/Folha.
+## 🔑 Acesso Padrão
 
-### Fazer Backup
-1. Vá para a página **Exportar**.
-2. Clique em **Fazer Backup** para baixar um arquivo JSON com todos os seus dados.
-3. Guarde este arquivo em segurança.
+Para o primeiro acesso, utilize a conta de super-administrador (criada automaticamente):
 
-## 🔒 Segurança dos Dados
+- **Email**: `admin@sistema.local`
+- **Senha**: `admin123`
 
-Os dados são armazenados **localmente no seu navegador** (IndexedDB). Não há envio para nuvem.
-**IMPORTANTE**: Faça backups regulares (Exportar -> Backup) para evitar perda de dados em caso de limpeza de cache ou problemas no computador.
+> **Nota**: Recomenda-se criar um novo usuário admin e desativar este padrão em produção.
 
-## 📄 Documentação Legal
+## 📂 Estrutura de Pastas
 
-O sistema inclui documentação completa de:
-- **Termos de Uso**: Acesse pelo ícone no header
-- **Política de Privacidade**: Conforme LGPD, acesse pelo ícone no header
+- `/src` - Código fonte do Frontend (React)
+- `/backend` - Código fonte do Servidor e API (Node.js)
+- `/dist` - Arquivos estáticos gerados pelo build (não editar manualmente)
+- `/database` - Arquivos do banco de dados SQLite
 
-## 👨‍💻 Créditos
+## 🔒 Segurança e Dados
+
+- O banco de dados é um arquivo local (`escrituras.db`).
+- Faça backups regulares do arquivo `.db` ou use a função de exportação do sistema.
+- Todas as senhas são criptografadas.
+
+## 📄 Licença e Créditos
 
 **Desenvolvido por:** Iago Feitosa  
 **Empresa:** Feitosa Soluções em Informática  
 **Ano:** 2026
-
----
 
 © 2026 Feitosa Soluções em Informática. Todos os direitos reservados.
