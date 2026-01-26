@@ -4,7 +4,7 @@ import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { authAPI } from '../services/api';
-import logoFeitosa from '../assets/logo-feitosa.png';
+import { logoBase64 } from '../assets/logoData';
 import '../styles/index.css';
 
 export function Login({ onLoginSuccess }) {
@@ -49,7 +49,7 @@ export function Login({ onLoginSuccess }) {
             <Card style={{ maxWidth: '400px', width: '100%' }}>
                 <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-xl)' }}>
                     <img
-                        src={logoFeitosa}
+                        src={logoBase64}
                         alt="Feitosa Soluções em Informática"
                         style={{ height: '60px', marginBottom: 'var(--spacing-md)' }}
                     />

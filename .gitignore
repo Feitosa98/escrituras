@@ -7,7 +7,7 @@ dist/
 *.db-journal
 *.sqlite
 backend/database/*.db
-C:\Users\Iago Feitosa\AppData\Roaming\SistemaEscrituras\
+C:\Users\Iago Feitosa\AppData\Roaming\SistemaEscrituras
 
 # Variáveis de Ambiente
 .env

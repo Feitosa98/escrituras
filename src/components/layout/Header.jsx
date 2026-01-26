@@ -4,7 +4,7 @@ import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import TermosDeUso from '../legal/TermosDeUso';
 import PoliticaPrivacidade from '../legal/PoliticaPrivacidade';
-import logoFeitosa from '../../assets/logo-feitosa.png';
+import { logoBase64 } from '../../assets/logoData';
 import '../../styles/index.css';
 
 export function Header({ toggleTheme, isDark, user, onLogout }) {
@@ -38,7 +38,7 @@ export function Header({ toggleTheme, isDark, user, onLogout }) {
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
                     <img
-                        src={logoFeitosa}
+                        src={logoBase64}
                         alt="Feitosa Soluções em Informática"
                         style={{ height: '40px', width: 'auto' }}
                     />
