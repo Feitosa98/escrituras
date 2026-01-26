@@ -1,0 +1,62 @@
+{
+  "name": "sistema-escrituras-desktop",
+  "version": "1.0.0",
+  "description": "Sistema de Controle de Escrituras - Aplicação Desktop Multi-Usuário",
+  "author": "Iago Feitosa - Feitosa Soluções em Informática",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev:backend": "nodemon backend/server.js",
+    "dev:frontend": "cd frontend && npm start",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"wait-on http://localhost:3001 && electron .\"",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:frontend && electron-builder",
+    "build:win": "npm run build:frontend && electron-builder --win"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.2.2",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.feitosa.escrituras",
+    "productName": "Sistema de Escrituras",
+    "copyright": "Copyright © 2026 Feitosa Soluções em Informática",
+    "win": {
+      "target": ["nsis"],
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema de Escrituras",
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "installerHeaderIcon": "electron/icon.ico"
+    },
+    "files": [
+      "electron/**/*",
+      "backend/**/*",
+      "src/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "electron"
+    }
+  }
+}
