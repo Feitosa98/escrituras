@@ -1,0 +1,36 @@
+# Dependências
+node_modules/
+dist/
+
+# Banco de Dados
+*.db
+*.db-journal
+*.sqlite
+backend/database/*.db
+C:\Users\Iago Feitosa\AppData\Roaming\SistemaEscrituras
+
+# Variáveis de Ambiente
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Sistema
+Thumbs.db
+Desktop.ini
+
+# Build
+build/
+out/
+
+# Gemini
+.gemini/
