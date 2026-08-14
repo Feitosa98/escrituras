@@ -197,10 +197,10 @@ class Meta {
                 mi.meta_quantidade as meta
             FROM users u
             LEFT JOIN escrituras e ON u.id = e.created_by AND e.mes = ? AND e.ano = ?
-            LEFT JOIN metas_individuais mi ON u.id = mi.user_id
-            LEFT JOIN metas_mensais mm ON mi.meta_mensal_id = mm.id AND mm.mes = ? AND mm.ano = ?
+            LEFT JOIN metas_mensais mm ON mm.mes = ? AND mm.ano = ?
+            LEFT JOIN metas_individuais mi ON u.id = mi.user_id AND mi.meta_mensal_id = mm.id
             WHERE u.ativo = 1
-            GROUP BY u.id
+            GROUP BY u.id, u.nome, u.email, mi.meta_quantidade
             ORDER BY producao DESC
         `).all(mes, ano, mes, ano);
 
