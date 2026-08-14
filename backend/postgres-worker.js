@@ -49,7 +49,7 @@ port.on('message', async (message) => {
     reply({ ok: true, data });
   } catch (error) {
     if (transactionClient && message.action !== 'rollback') {
-      try { await transactionClient.query('ROLLBACK'); } catch {}
+      try { await transactionClient.query('ROLLBACK'); } catch { /* conexão já encerrada */ }
       transactionClient.release();
       transactionClient = null;
     }

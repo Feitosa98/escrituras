@@ -1,6 +1,6 @@
 const path = require('path');
 const bcrypt = require('bcryptjs');
-const { Worker, MessageChannel, receiveMessageOnPort } = require('worker_threads');
+const { Worker, MessageChannel } = require('worker_threads');
 
 const BUFFER_SIZE = 16 * 1024 * 1024;
 const signal = new Int32Array(new SharedArrayBuffer(4));
@@ -27,8 +27,8 @@ function placeholders(sql) {
   let index = 0;
   return sql
     .replace(/COLLATE\s+NOCASE/gi, '')
-    .replace(/strftime\('\%Y-\%m',\s*([^)]+)\)/gi, "TO_CHAR($1, 'YYYY-MM')")
-    .replace(/strftime\('\%Y',\s*([^)]+)\)/gi, "TO_CHAR($1, 'YYYY')")
+    .replace(/strftime\('%Y-%m',\s*([^)]+)\)/gi, "TO_CHAR($1, 'YYYY-MM')")
+    .replace(/strftime\('%Y',\s*([^)]+)\)/gi, "TO_CHAR($1, 'YYYY')")
     .replace(/\?/g, () => `$${++index}`);
 }
 
