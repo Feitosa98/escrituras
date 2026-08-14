@@ -28,9 +28,9 @@ function usernameFromUser(user, usedUsernames) {
     .trim()
     .split(/\s+/)
     .filter(Boolean);
-  const first = parts[0] || (user.role === 'admin' ? 'admin' : 'usuario');
-  const last = parts.length > 1 ? parts.at(-1) : (user.role === 'admin' ? 'sistema' : 'cartorio');
-  const base = `${first}.${last}`;
+  const first = parts[0] || 'usuario';
+  const last = parts.length > 1 ? parts.at(-1) : 'cartorio';
+  const base = user.role === 'admin' ? 'admin.sistema' : `${first}.${last}`;
   let candidate = base;
   let suffix = 2;
   while (usedUsernames.has(candidate)) candidate = `${base}${suffix++}`;
