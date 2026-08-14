@@ -1,5 +1,6 @@
 require('dotenv').config();
 const path = require('path');
+const fs = require('fs');
 const Database = require('better-sqlite3');
 const { Client } = require('pg');
 
@@ -18,6 +19,7 @@ async function main() {
   await pg.connect();
   const summary = {};
   try {
+    await pg.query(fs.readFileSync(path.join(__dirname, 'postgres-schema.sql'), 'utf8'));
     await pg.query('BEGIN');
     await pg.query(`TRUNCATE ${tables.map(quoted).join(', ')} RESTART IDENTITY CASCADE`);
     for (const table of tables) {
