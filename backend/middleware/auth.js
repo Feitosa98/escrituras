@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-aqui-2026';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'development'
+    ? 'sua-chave-secreta-super-segura-aqui-2026'
+    : null);
+
+if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET deve ser configurada em produção');
+}
 const JWT_EXPIRES_IN = '8h';
 
 function authenticateToken(req, res, next) {
@@ -16,8 +22,39 @@ function authenticateToken(req, res, next) {
             return res.status(403).json({ error: 'Token inválido ou expirado' });
         }
 
-        req.user = user;
-        next();
+        try {
+            const db = require('../database');
+            const currentUser = db.prepare(`
+                SELECT ativo, access_start, access_end FROM users WHERE id = ?
+            `).get(user.id);
+            if (!currentUser?.ativo) {
+                return res.status(401).json({ error: 'Usuário inativo' });
+            }
+
+            const time = new Intl.DateTimeFormat('pt-BR', {
+                timeZone: process.env.APP_TIMEZONE || 'America/Manaus',
+                hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+            }).formatToParts(new Date());
+            const current = Number(time.find((part) => part.type === 'hour')?.value || 0) * 60
+                + Number(time.find((part) => part.type === 'minute')?.value || 0);
+            const minutes = (value) => {
+                const [hour, minute] = String(value).split(':').map(Number);
+                return hour * 60 + minute;
+            };
+            const start = minutes(currentUser.access_start || '07:50');
+            const end = minutes(currentUser.access_end || '18:30');
+            const allowed = start <= end ? current >= start && current <= end : current >= start || current <= end;
+            if (!allowed) {
+                return res.status(403).json({
+                    error: `Acesso permitido somente das ${currentUser.access_start} às ${currentUser.access_end}`
+                });
+            }
+
+            req.user = user;
+            next();
+        } catch (error) {
+            return res.status(500).json({ error: 'Não foi possível validar o horário de acesso' });
+        }
     });
 }
 

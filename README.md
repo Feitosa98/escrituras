@@ -51,7 +51,7 @@ O servidor iniciará em `http://localhost:3001`.
 
 Para o primeiro acesso, utilize a conta de super-administrador (criada automaticamente):
 
-- **Email**: `admin@sistema.local`
+- **Usuário**: `admin.sistema`
 - **Senha**: `admin123`
 
 > **Nota**: Recomenda-se criar um novo usuário admin e desativar este padrão em produção.

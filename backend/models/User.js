@@ -2,29 +2,36 @@ const db = require('../database');
 
 class User {
     static findAll() {
-        return db.prepare('SELECT id, nome, email, role, ativo, created_at FROM users ORDER BY nome').all();
+        return db.prepare('SELECT id, nome, username, email, role, ativo, access_start, access_end, created_at FROM users ORDER BY nome').all();
     }
 
     static findById(id) {
-        return db.prepare('SELECT id, nome, email, role, ativo, created_at FROM users WHERE id = ?').get(id);
+        return db.prepare('SELECT id, nome, username, email, role, ativo, access_start, access_end, created_at FROM users WHERE id = ?').get(id);
     }
 
     static findByEmail(email) {
         return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     }
 
+    static findByUsername(username) {
+        return db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username);
+    }
+
     static create(data) {
         const stmt = db.prepare(`
-      INSERT INTO users (nome, email, senha_hash, role, ativo)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (nome, username, email, senha_hash, role, ativo, access_start, access_end)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
         const result = stmt.run(
             data.nome,
+            data.username,
             data.email,
             data.senha_hash,
             data.role || 'visualizador',
-            data.ativo !== undefined ? data.ativo : 1
+            data.ativo !== undefined ? data.ativo : 1,
+            data.access_start || '07:50',
+            data.access_end || '18:30'
         );
 
         return this.findById(result.lastInsertRowid);
@@ -42,6 +49,10 @@ class User {
             fields.push('email = ?');
             values.push(data.email);
         }
+        if (data.username) {
+            fields.push('username = ?');
+            values.push(data.username);
+        }
         if (data.senha_hash) {
             fields.push('senha_hash = ?');
             values.push(data.senha_hash);
@@ -53,6 +64,14 @@ class User {
         if (data.ativo !== undefined) {
             fields.push('ativo = ?');
             values.push(data.ativo);
+        }
+        if (data.access_start) {
+            fields.push('access_start = ?');
+            values.push(data.access_start);
+        }
+        if (data.access_end) {
+            fields.push('access_end = ?');
+            values.push(data.access_end);
         }
 
         fields.push('updated_at = CURRENT_TIMESTAMP');

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -14,9 +15,31 @@ const adminRoutes = require('./routes/admin');
 const integrityRoutes = require('./routes/integrity');
 const signatureRoutes = require('./routes/signatures');
 const metaRoutes = require('./routes/metas');
+const consultaRoutes = require('./routes/consulta');
+const agendamentoRoutes = require('./routes/agendamentos');
 
 // Inicializar banco de dados
-require('./database');
+const database = require('./database');
+
+if (database.dialect !== 'postgres') {
+// Rodar migração de protocolo automaticamente
+try { require('./migrate_protocolo'); } catch(e) { console.warn('Aviso migração protocolo:', e.message); }
+
+// Rodar migração de novo fluxo (6 etapas)
+try {
+  const { migrarFluxo } = require('./migrate_fluxo');
+  migrarFluxo();
+} catch(e) { console.warn('Aviso migração fluxo:', e.message); }
+
+// Garantir a tabela de histórico usada pelo painel e pelo Kanban
+try { require('./migrate_workflow'); } catch(e) { console.warn('Aviso migração workflow:', e.message); }
+
+// Garantir o campo usado para notificar o cliente por e-mail
+try { require('./migrate_email_cliente'); } catch(e) { console.warn('Aviso migração e-mail do cliente:', e.message); }
+
+// Credenciais públicas de acompanhamento e janela de acesso dos usuários
+try { require('./migrate_acompanhamento_acesso'); } catch(e) { console.warn('Aviso migração acompanhamento/acesso:', e.message); }
+}
 
 function getNetworkIp() {
     const interfaces = os.networkInterfaces();
@@ -36,6 +59,10 @@ function startServer() {
         const app = express();
         const PORT = process.env.PORT || 3001;
 
+        if (process.env.NODE_ENV === 'production') {
+            app.set('trust proxy', 1);
+        }
+
         // Middlewares de segurança
         app.use(helmet({
             contentSecurityPolicy: false // Desabilitar para permitir carregar React
@@ -50,8 +77,12 @@ function startServer() {
         app.use('/api/', limiter);
 
         // CORS
+        const allowedOrigins = (process.env.CORS_ORIGIN || '')
+            .split(',')
+            .map(origin => origin.trim())
+            .filter(Boolean);
         app.use(cors({
-            origin: '*', // Permitir todas as origens (rede local)
+            origin: allowedOrigins.length > 0 ? allowedOrigins : true,
             credentials: true
         }));
 
@@ -74,6 +105,8 @@ function startServer() {
         app.use('/api/integrity', integrityRoutes);
         app.use('/api/signatures', signatureRoutes);
         app.use('/api/metas', metaRoutes);
+        app.use('/api/consulta', consultaRoutes); // Rota pública - sem autenticação
+        app.use('/api/agendamentos', agendamentoRoutes);
 
         // Rota temporária para debug de client-side errors
         app.post('/api/client-log', (req, res) => {
@@ -118,9 +151,11 @@ function startServer() {
             console.log(`📍 Local:  http://localhost:${PORT}`);
             console.log(`🌐 Rede:   http://${networkIp}:${PORT}`);
             console.log('========================================');
-            console.log('👤 Usuário padrão:');
-            console.log('   Email: admin@sistema.local');
-            console.log('   Senha: admin123');
+            if (process.env.NODE_ENV === 'development') {
+                console.log('👤 Usuário padrão:');
+                console.log('   Usuário: admin.sistema');
+                console.log('   Senha: admin123');
+            }
             console.log('========================================\n');
 
             resolve({

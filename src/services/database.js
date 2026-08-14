@@ -5,7 +5,8 @@ export const db = new Dexie('EscriturasDB');
 
 // Definir schema
 db.version(1).stores({
-  escrituras: '++id, tipo, selagem, livro, folha, outorgante, outorgado, escrevente, tipoLivro, mes, ano, observacao, createdAt, updatedAt'
+  escrituras:
+    '++id, tipo, selagem, livro, folha, outorgante, outorgado, escrevente, tipoLivro, mes, ano, observacao, createdAt, updatedAt',
 });
 
 // Classe para Escritura
@@ -76,7 +77,7 @@ export async function atualizarEscritura(id, data) {
   try {
     const updates = {
       ...data,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     await db.escrituras.update(id, updates);
     return { success: true };
@@ -133,7 +134,7 @@ export async function buscarEscrituras(filtros = {}) {
 
     // Filtro de data (período)
     if (filtros.dataInicio || filtros.dataFim) {
-      filtrados = filtrados.filter(e => {
+      filtrados = filtrados.filter((e) => {
         if (!e.selagem) return false;
         const dataSelagem = new Date(e.selagem);
         let valido = true;
@@ -153,13 +154,14 @@ export async function buscarEscrituras(filtros = {}) {
     // Filtro de texto (busca em múltiplos campos)
     if (filtros.texto) {
       const textoLower = filtros.texto.toLowerCase();
-      filtrados = filtrados.filter(e =>
-        e.tipo?.toLowerCase().includes(textoLower) ||
-        e.outorgante?.toLowerCase().includes(textoLower) ||
-        e.outorgado?.toLowerCase().includes(textoLower) ||
-        e.livro?.toString().includes(textoLower) ||
-        e.folha?.toLowerCase().includes(textoLower) ||
-        e.observacao?.toLowerCase().includes(textoLower)
+      filtrados = filtrados.filter(
+        (e) =>
+          e.tipo?.toLowerCase().includes(textoLower) ||
+          e.outorgante?.toLowerCase().includes(textoLower) ||
+          e.outorgado?.toLowerCase().includes(textoLower) ||
+          e.livro?.toString().includes(textoLower) ||
+          e.folha?.toLowerCase().includes(textoLower) ||
+          e.observacao?.toLowerCase().includes(textoLower)
       );
     }
 
@@ -176,12 +178,13 @@ export async function buscarEscrituras(filtros = {}) {
 export async function verificarDuplicidade(livro, folha, idIgnorar = null) {
   try {
     const existentes = await db.escrituras
-      .where('livro').equals(livro)
-      .and(e => e.folha === folha)
+      .where('livro')
+      .equals(livro)
+      .and((e) => e.folha === folha)
       .toArray();
 
     if (idIgnorar) {
-      return existentes.filter(e => e.id !== idIgnorar);
+      return existentes.filter((e) => e.id !== idIgnorar);
     }
 
     return existentes;
@@ -237,7 +240,7 @@ export async function obterEstatisticas() {
       porEscrevente,
       porMes,
       porTipoLivro,
-      recentes
+      recentes,
     };
   } catch (error) {
     console.error('Erro ao obter estatísticas:', error);
@@ -247,7 +250,7 @@ export async function obterEstatisticas() {
       porEscrevente: {},
       porMes: {},
       porTipoLivro: {},
-      recentes: []
+      recentes: [],
     };
   }
 }
@@ -270,7 +273,7 @@ export async function limparDados() {
  */
 export async function importarDados(escrituras) {
   try {
-    const escriturasFormatadas = escrituras.map(e => new Escritura(e));
+    const escriturasFormatadas = escrituras.map((e) => new Escritura(e));
     await db.escrituras.bulkAdd(escriturasFormatadas);
     return { success: true, count: escriturasFormatadas.length };
   } catch (error) {

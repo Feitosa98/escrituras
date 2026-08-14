@@ -6,26 +6,26 @@ import { useEffect } from 'react';
  * Exemplo: { 'ctrl+n': () => console.log('Nova escritura') }
  */
 export function useKeyboardShortcuts(shortcuts) {
-    useEffect(() => {
-        function handleKeyDown(event) {
-            const key = [];
+  useEffect(() => {
+    function handleKeyDown(event) {
+      const key = [];
 
-            if (event.ctrlKey) key.push('ctrl');
-            if (event.altKey) key.push('alt');
-            if (event.shiftKey) key.push('shift');
-            key.push(event.key.toLowerCase());
+      if (event.ctrlKey) key.push('ctrl');
+      if (event.altKey) key.push('alt');
+      if (event.shiftKey) key.push('shift');
+      key.push(event.key.toLowerCase());
 
-            const combination = key.join('+');
+      const combination = key.join('+');
 
-            if (shortcuts[combination]) {
-                event.preventDefault();
-                shortcuts[combination]();
-            }
-        }
+      if (shortcuts[combination]) {
+        event.preventDefault();
+        shortcuts[combination]();
+      }
+    }
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [shortcuts]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shortcuts]);
 }
 
 export default useKeyboardShortcuts;

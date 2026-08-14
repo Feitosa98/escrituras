@@ -2,6 +2,18 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { auditLog } = require('../middleware/audit');
 
+function normalizeUsername(value) {
+    return String(value || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/[^a-z0-9.]+/g, '');
+}
+
+function usernameFromName(nome) {
+    const parts = String(nome || '').trim().split(/\s+/).filter(Boolean);
+    const clean = (value) => normalizeUsername(value).replaceAll('.', '');
+    return `${clean(parts[0])}.${clean(parts.at(-1) || 'usuario')}`;
+}
+
 async function getAll(req, res) {
     try {
         const users = User.findAll();
@@ -29,14 +41,25 @@ async function getById(req, res) {
 
 async function create(req, res) {
     try {
-        const { nome, email, senha, role } = req.body;
+        const { nome, email, senha, role, access_start, access_end } = req.body;
+        const username = normalizeUsername(req.body.username) || usernameFromName(nome);
 
-        if (!nome || !email || !senha) {
-            return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
+        if (!nome || !senha) {
+            return res.status(400).json({ error: 'Nome e senha são obrigatórios' });
         }
 
+        if (!/^[a-z0-9]+\.[a-z0-9]+$/.test(username)) {
+            return res.status(400).json({ error: 'O usuário deve seguir o formato nome.sobrenome' });
+        }
+
+        if (User.findByUsername(username)) {
+            return res.status(400).json({ error: 'Nome de usuário já cadastrado' });
+        }
+
+        const emailFinal = String(email || `${username}@sistema.local`).trim().toLowerCase();
+
         // Verificar se email já existe
-        const existente = User.findByEmail(email);
+        const existente = User.findByEmail(emailFinal);
         if (existente) {
             return res.status(400).json({ error: 'Email já cadastrado' });
         }
@@ -46,13 +69,16 @@ async function create(req, res) {
 
         const user = User.create({
             nome,
-            email,
+            username,
+            email: emailFinal,
             senha_hash,
-            role: role || 'visualizador'
+            role: role || 'visualizador',
+            access_start: access_start || '07:50',
+            access_end: access_end || '18:30'
         });
 
         // Audit log
-        await auditLog(req, 'CREATE', 'users', user.id, null, { nome, email, role });
+        await auditLog(req, 'CREATE', 'users', user.id, null, { nome, username, role, access_start, access_end });
 
         res.status(201).json(user);
     } catch (error) {
@@ -64,7 +90,7 @@ async function create(req, res) {
 async function update(req, res) {
     try {
         const { id } = req.params;
-        const { nome, email, senha, role, ativo } = req.body;
+        const { nome, email, senha, role, ativo, access_start, access_end } = req.body;
 
         const userAntigo = User.findById(id);
         if (!userAntigo) {
@@ -75,8 +101,18 @@ async function update(req, res) {
 
         if (nome) updateData.nome = nome;
         if (email) updateData.email = email;
+        if (req.body.username) {
+            const username = normalizeUsername(req.body.username);
+            const existente = User.findByUsername(username);
+            if (existente && existente.id !== Number(id)) {
+                return res.status(400).json({ error: 'Nome de usuário já cadastrado' });
+            }
+            updateData.username = username;
+        }
         if (role) updateData.role = role;
         if (ativo !== undefined) updateData.ativo = ativo;
+        if (access_start) updateData.access_start = access_start;
+        if (access_end) updateData.access_end = access_end;
 
         if (senha) {
             updateData.senha_hash = await bcrypt.hash(senha, 10);

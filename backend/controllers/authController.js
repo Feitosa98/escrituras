@@ -5,19 +5,25 @@ const { auditLog } = require('../middleware/audit');
 
 async function login(req, res) {
     try {
-        const { email, senha } = req.body;
+        const { usuario, senha } = req.body;
+        const loginInformado = usuario;
 
         // Validação de entrada
-        if (!email || !senha) {
-            return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+        if (!loginInformado || !senha) {
+            return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
         }
 
         // Validar formato de email
-        if (typeof email !== 'string' || typeof senha !== 'string') {
+        if (typeof loginInformado !== 'string' || typeof senha !== 'string') {
             return res.status(400).json({ error: 'Formato inválido de credenciais' });
         }
 
-        const user = User.findByEmail(email.trim());
+        const loginNormalizado = loginInformado.trim().toLowerCase();
+        if (!/^[a-z0-9]+\.[a-z0-9]+$/.test(loginNormalizado)) {
+            return res.status(400).json({ error: 'Use o usuário no formato nome.sobrenome' });
+        }
+
+        const user = User.findByUsername(loginNormalizado);
 
         if (!user) {
             return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -25,6 +31,29 @@ async function login(req, res) {
 
         if (!user.ativo) {
             return res.status(401).json({ error: 'Usuário inativo' });
+        }
+
+        const nowParts = new Intl.DateTimeFormat('pt-BR', {
+            timeZone: process.env.APP_TIMEZONE || 'America/Manaus',
+            hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }).formatToParts(new Date());
+        const hour = Number(nowParts.find((part) => part.type === 'hour')?.value || 0);
+        const minute = Number(nowParts.find((part) => part.type === 'minute')?.value || 0);
+        const currentMinutes = hour * 60 + minute;
+        const toMinutes = (time) => {
+            const [h, m] = String(time || '').split(':').map(Number);
+            return h * 60 + m;
+        };
+        const start = toMinutes(user.access_start || '07:50');
+        const end = toMinutes(user.access_end || '18:30');
+        const allowed = start <= end
+            ? currentMinutes >= start && currentMinutes <= end
+            : currentMinutes >= start || currentMinutes <= end;
+
+        if (!allowed) {
+            return res.status(403).json({
+                error: `Acesso permitido somente das ${user.access_start} às ${user.access_end}`
+            });
         }
 
         const senhaValida = await bcrypt.compare(senha, user.senha_hash);
@@ -42,7 +71,7 @@ async function login(req, res) {
             'users',
             user.id,
             null,
-            { email: user.email }
+            { username: user.username }
         );
 
         // Remover senha do retorno
@@ -53,8 +82,11 @@ async function login(req, res) {
             user: {
                 id: user.id,
                 nome: user.nome,
+                username: user.username,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                access_start: user.access_start,
+                access_end: user.access_end
             }
         });
     } catch (error) {

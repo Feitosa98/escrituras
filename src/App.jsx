@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import {
+  HashRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { ToastProvider, useToast } from './components/ui/Toast';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
-import { isAuthenticated, getUser, hasPermission, authAPI } from './services/api';
+import { isAuthenticated, getUser, hasPermission, authAPI, escriturasAPI } from './services/api';
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
 import Footer from './components/layout/Footer';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Listagem from './pages/Listagem';
+import Kanban from './pages/Kanban';
 import Cadastro from './pages/Cadastro';
 import Importar from './pages/Importar';
 import Exportar from './pages/Exportar';
@@ -17,21 +26,17 @@ import Auditoria from './pages/Auditoria';
 import TiposEscritura from './pages/admin/TiposEscritura';
 import { Escreventes } from './pages/admin/Escreventes';
 import { Metas } from './pages/Metas';
+import Consulta from './pages/Consulta';
+import LegalPage from './pages/LegalPage';
 import './styles/index.css';
 
 function AppContent() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [authenticated, setAuthenticated] = useState(isAuthenticated());
   const [user, setUser] = useState(getUser());
 
-  // Obter página atual da URL
-  const getCurrentPageFromURL = () => {
-    const path = window.location.pathname;
-    if (path === '/' || path === '') return 'dashboard';
-    return path.substring(1); // Remove a barra inicial
-  };
-
-  const [currentPage, setCurrentPage] = useState(getCurrentPageFromURL());
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
     return savedTheme === 'dark';
@@ -40,69 +45,67 @@ function AppContent() {
   const [escrituraView, setEscrituraView] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Aplicar tema salvo ao montar
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
   }, []);
 
-  // Sincronizar com mudanças de URL (botão voltar/avançar)
-  useEffect(() => {
-    const handlePopState = () => {
-      setCurrentPage(getCurrentPageFromURL());
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  // Verificar autenticação ao montar
   useEffect(() => {
     if (authenticated) {
-      // Verificar se o token ainda é válido
-      authAPI.me()
-        .then(userData => {
+      authAPI
+        .me()
+        .then((userData) => {
           setUser(userData);
           localStorage.setItem('user', JSON.stringify(userData));
         })
         .catch(() => {
-          handleLogout();
+          authAPI.logout();
+          setAuthenticated(false);
+          setUser(null);
+          navigate('/');
         });
     }
   }, []);
 
-  // Atalhos de teclado (apenas se autenticado)
-  useKeyboardShortcuts(authenticated ? {
-    'ctrl+n': () => {
-      if (hasPermission('editor')) {
-        setEscrituraEdit(null);
-        setCurrentPage('cadastro');
-        toast.info('Nova escritura (Ctrl+N)');
-      }
-    },
-    'ctrl+l': () => {
-      setCurrentPage('listagem');
-      toast.info('Listagem (Ctrl+L)');
-    },
-    'ctrl+d': () => {
-      setCurrentPage('dashboard');
-      toast.info('Dashboard (Ctrl+D)');
-    },
-    'ctrl+i': () => {
-      if (hasPermission('editor')) {
-        setCurrentPage('importar');
-        toast.info('Importar (Ctrl+I)');
-      }
-    },
-    'ctrl+e': () => {
-      setCurrentPage('exportar');
-      toast.info('Exportar (Ctrl+E)');
-    }
-  } : {});
+  useKeyboardShortcuts(
+    authenticated
+      ? {
+          'ctrl+n': () => {
+            if (hasPermission('editor')) {
+              setEscrituraEdit(null);
+              navigate('/cadastro');
+              toast.info('Nova escritura (Ctrl+N)');
+            }
+          },
+          'ctrl+l': () => {
+            navigate('/listagem');
+            toast.info('Listagem (Ctrl+L)');
+          },
+          'ctrl+d': () => {
+            navigate('/');
+            toast.info('Dashboard (Ctrl+D)');
+          },
+          'ctrl+i': () => {
+            if (hasPermission('editor')) {
+              navigate('/importar');
+              toast.info('Importar (Ctrl+I)');
+            }
+          },
+          'ctrl+e': () => {
+            navigate('/exportar');
+            toast.info('Exportar (Ctrl+E)');
+          },
+        }
+      : {}
+  );
 
   function handleLoginSuccess(userData) {
     setUser(userData);
     setAuthenticated(true);
-    setCurrentPage('dashboard');
+    navigate('/');
     toast.success(`Bem-vindo, ${userData.nome}!`);
   }
 
@@ -110,7 +113,7 @@ function AppContent() {
     authAPI.logout();
     setAuthenticated(false);
     setUser(null);
-    setCurrentPage('dashboard');
+    navigate('/');
     toast.info('Logout realizado com sucesso');
   }
 
@@ -119,30 +122,12 @@ function AppContent() {
     setIsDarkTheme(newTheme);
     const themeValue = newTheme ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', themeValue);
+    if (newTheme) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     localStorage.setItem('theme', themeValue);
-  }
-
-  function handlePageChange(page) {
-    // Verificar permissões antes de mudar de página
-    if (page === 'cadastro' && !hasPermission('editor')) {
-      toast.error('Você não tem permissão para criar escrituras');
-      return;
-    }
-    if (page === 'importar' && !hasPermission('editor')) {
-      toast.error('Você não tem permissão para importar dados');
-      return;
-    }
-    if ((page === 'usuarios' || page === 'auditoria' || page === 'tipos-escritura' || page === 'escreventes') && !hasPermission('admin')) {
-      toast.error('Apenas administradores podem acessar esta página');
-      return;
-    }
-
-    // Atualizar URL e estado
-    const newPath = page === 'dashboard' ? '/' : `/${page}`;
-    window.history.pushState({}, '', newPath);
-    setCurrentPage(page);
-    setEscrituraEdit(null);
-    setEscrituraView(null);
   }
 
   function handleEdit(escritura) {
@@ -151,68 +136,40 @@ function AppContent() {
       return;
     }
     setEscrituraEdit(escritura);
-    window.history.pushState({}, '', '/cadastro');
-    setCurrentPage('cadastro');
+    navigate('/cadastro');
   }
 
-  function handleView(escritura) {
-    setEscrituraView(escritura);
-    window.history.pushState({}, '', '/detalhes');
-    setCurrentPage('detalhes');
+  async function handleView(escritura) {
+    try {
+      const completa = await escriturasAPI.getById(escritura.uuid || escritura.id);
+      setEscrituraView(completa);
+    } catch {
+      setEscrituraView(escritura);
+    }
+    navigate('/detalhes');
   }
 
   function handleSaveSuccess() {
-    setRefreshKey(prev => prev + 1);
-    window.history.pushState({}, '', '/listagem');
-    setCurrentPage('listagem');
+    setRefreshKey((prev) => prev + 1);
+    navigate('/listagem');
     setEscrituraEdit(null);
   }
 
   function handleImportSuccess() {
-    setRefreshKey(prev => prev + 1);
-    window.history.pushState({}, '', '/listagem');
-    setCurrentPage('listagem');
+    setRefreshKey((prev) => prev + 1);
+    navigate('/listagem');
     toast.success('Dados importados! Redirecionando para listagem...');
   }
 
-  function renderPage() {
-    switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard key={refreshKey} />;
+  // Rota pública: página de consulta de protocolo (sem login)
+  // Com HashRouter, useLocation() já retorna o pathname correto (/consulta)
+  if (location.pathname === '/consulta') {
+    return <Consulta />;
+  }
 
-      case 'listagem':
-        return <Listagem key={refreshKey} onEdit={handleEdit} onView={handleView} />;
-
-      case 'cadastro':
-        return <Cadastro escritura={escrituraEdit} onSaveSuccess={handleSaveSuccess} />;
-
-      case 'importar':
-        return <Importar onImportSuccess={handleImportSuccess} />;
-
-      case 'exportar':
-        return <Exportar />;
-
-      case 'detalhes':
-        return <Detalhes escritura={escrituraView} onEdit={handleEdit} onClose={() => setCurrentPage('listagem')} />;
-
-      case 'usuarios':
-        return <GerenciarUsuarios />;
-
-      case 'tipos-escritura':
-        return <TiposEscritura />;
-
-      case 'escreventes':
-        return <Escreventes />;
-
-      case 'auditoria':
-        return <Auditoria />;
-
-      case 'metas':
-        return <Metas />;
-
-      default:
-        return <Dashboard key={refreshKey} />;
-    }
+  const legalType = location.pathname.slice(1);
+  if (['termos', 'privacidade', 'lgpd'].includes(legalType)) {
+    return <LegalPage type={legalType} />;
   }
 
   // Se não estiver autenticado, mostrar tela de login
@@ -221,7 +178,17 @@ function AppContent() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div
+      className={`h-screen flex flex-col overflow-hidden font-sans ${isDarkTheme ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}
+      style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
+    >
+      {/* Decorative blobs - fixed */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className={`absolute top-0 left-0 w-[500px] h-[500px] rounded-full blur-[120px] opacity-30 ${isDarkTheme ? 'bg-blue-900' : 'bg-blue-200'}`} />
+        <div className={`absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[120px] opacity-20 ${isDarkTheme ? 'bg-indigo-900' : 'bg-indigo-200'}`} />
+      </div>
+
+      {/* Header - fixed top */}
       <Header
         toggleTheme={toggleTheme}
         isDark={isDarkTheme}
@@ -229,16 +196,71 @@ function AppContent() {
         onLogout={handleLogout}
       />
 
-      <div style={{ display: 'flex', flex: 1 }}>
-        <Sidebar
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-          userRole={user?.role}
-        />
+      {/* Body: sidebar + main */}
+      <div className="flex flex-1 overflow-hidden relative z-10">
+        <Sidebar userRole={user?.role} user={user} />
 
-        <main style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1 }}>
-            {renderPage()}
+        <main style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ minHeight: '100%', padding: '1.5rem 2rem' }}>
+            <Routes>
+              <Route path="/" element={<Dashboard key={refreshKey} />} />
+              <Route
+                path="/listagem"
+                element={<Listagem key={refreshKey} onEdit={handleEdit} onView={handleView} />}
+              />
+              <Route path="/workflow" element={<Kanban key={refreshKey} />} />
+              <Route
+                path="/cadastro"
+                element={
+                  hasPermission('editor') ? (
+                    <Cadastro escritura={escrituraEdit} onSaveSuccess={handleSaveSuccess} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
+                path="/importar"
+                element={
+                  hasPermission('editor') ? (
+                    <Importar onImportSuccess={handleImportSuccess} />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route path="/exportar" element={<Exportar />} />
+              <Route
+                path="/detalhes"
+                element={
+                  <Detalhes
+                    escritura={escrituraView}
+                    onEdit={handleEdit}
+                    onClose={() => navigate('/listagem')}
+                  />
+                }
+              />
+              <Route
+                path="/usuarios"
+                element={
+                  hasPermission('admin') ? <GerenciarUsuarios /> : <Navigate to="/" replace />
+                }
+              />
+              <Route
+                path="/tipos-escritura"
+                element={hasPermission('editor') ? <TiposEscritura /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/escreventes"
+                element={hasPermission('admin') ? <Escreventes /> : <Navigate to="/" replace />}
+              />
+              <Route
+                path="/auditoria"
+                element={hasPermission('admin') ? <Auditoria /> : <Navigate to="/" replace />}
+              />
+              <Route path="/metas" element={<Metas />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
           <Footer />
         </main>
@@ -249,9 +271,14 @@ function AppContent() {
 
 function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <Router>
+      <ToastProvider>
+        <Routes>
+          <Route path="/consulta" element={<Consulta />} />
+          <Route path="*" element={<AppContent />} />
+        </Routes>
+      </ToastProvider>
+    </Router>
   );
 }
 

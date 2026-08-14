@@ -1,6 +1,6 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, dialog } = require('electron');
 const path = require('path');
-const { startServer, getServerInfo } = require('../backend/server');
+const { startServer } = require('../backend/server');
 
 let mainWindow;
 let tray;

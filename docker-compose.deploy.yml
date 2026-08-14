@@ -1,0 +1,61 @@
+name: sistema-escrituras
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sistema-escrituras-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sistema_escrituras}
+      POSTGRES_USER: ${POSTGRES_USER:-escrituras_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: America/Manaus
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-escrituras_app} -d ${POSTGRES_DB:-sistema_escrituras}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sistema-escrituras-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-escrituras_app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sistema_escrituras}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3101:3001"
+    networks:
+      - default
+      - hostdesk-proxy
+      - traefik-proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik-proxy
+      - traefik.http.routers.sistema-escrituras.rule=Host(`sistema.tabelionatomanacapuru.com`)
+      - traefik.http.routers.sistema-escrituras.entrypoints=websecure
+      - traefik.http.routers.sistema-escrituras.tls=true
+      - traefik.http.routers.sistema-escrituras.tls.certresolver=letsencrypt
+      - traefik.http.services.sistema-escrituras.loadbalancer.server.port=3001
+
+networks:
+  hostdesk-proxy:
+    external: true
+    name: hostdesk-control_private
+  traefik-proxy:
+    external: true
+    name: traefik-proxy
+
+volumes:
+  postgres_data:
