@@ -2,6 +2,7 @@ require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const bcrypt = require('bcryptjs');
 const { Client } = require('pg');
 
 const sqlitePath = process.argv[2] || path.join(process.env.DATA_DIR || '.', 'escrituras.db');
@@ -59,6 +60,9 @@ async function main() {
       for (const row of rows) {
         if (table === 'users' && columns.includes('username')) {
           row.username = usernameFromUser(row, usedUsernames);
+          if (row.role === 'admin' && process.env.ADMIN_PASSWORD && columns.includes('senha_hash')) {
+            row.senha_hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12);
+          }
         }
         const values = columns.map((column) => row[column]);
         const params = values.map((_, index) => `$${index + 1}`).join(', ');
