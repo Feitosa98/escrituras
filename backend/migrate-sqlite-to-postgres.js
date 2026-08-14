@@ -57,6 +57,9 @@ async function main() {
       const targetColumns = new Set(target.rows.map((row) => row.column_name));
       const columns = sourceColumns.filter((column) => targetColumns.has(column));
       const rows = sqlite.prepare(`SELECT ${columns.map(quoted).join(', ')} FROM ${quoted(table)} ORDER BY id`).all();
+      if (table === 'users' && targetColumns.has('username') && !columns.includes('username')) {
+        columns.push('username');
+      }
       for (const row of rows) {
         if (table === 'users' && columns.includes('username')) {
           row.username = usernameFromUser(row, usedUsernames);
