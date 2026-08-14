@@ -12,6 +12,31 @@ const tables = [
 
 function quoted(name) { return `"${String(name).replaceAll('"', '""')}"`; }
 
+function usernameFromUser(user, usedUsernames) {
+  const existing = String(user.username || '').trim().toLowerCase();
+  if (existing) {
+    usedUsernames.add(existing);
+    return existing;
+  }
+
+  const parts = String(user.nome || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const first = parts[0] || (user.role === 'admin' ? 'admin' : 'usuario');
+  const last = parts.length > 1 ? parts.at(-1) : (user.role === 'admin' ? 'sistema' : 'cartorio');
+  const base = `${first}.${last}`;
+  let candidate = base;
+  let suffix = 2;
+  while (usedUsernames.has(candidate)) candidate = `${base}${suffix++}`;
+  usedUsernames.add(candidate);
+  return candidate;
+}
+
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL não configurada');
   const sqlite = new Database(sqlitePath, { readonly: true });
@@ -22,6 +47,7 @@ async function main() {
     await pg.query(fs.readFileSync(path.join(__dirname, 'postgres-schema.sql'), 'utf8'));
     await pg.query('BEGIN');
     await pg.query(`TRUNCATE ${tables.map(quoted).join(', ')} RESTART IDENTITY CASCADE`);
+    const usedUsernames = new Set();
     for (const table of tables) {
       const exists = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table);
       if (!exists) { summary[table] = 0; continue; }
@@ -31,6 +57,9 @@ async function main() {
       const columns = sourceColumns.filter((column) => targetColumns.has(column));
       const rows = sqlite.prepare(`SELECT ${columns.map(quoted).join(', ')} FROM ${quoted(table)} ORDER BY id`).all();
       for (const row of rows) {
+        if (table === 'users' && columns.includes('username')) {
+          row.username = usernameFromUser(row, usedUsernames);
+        }
         const values = columns.map((column) => row[column]);
         const params = values.map((_, index) => `$${index + 1}`).join(', ');
         await pg.query(`INSERT INTO ${quoted(table)} (${columns.map(quoted).join(', ')}) VALUES (${params})`, values);
