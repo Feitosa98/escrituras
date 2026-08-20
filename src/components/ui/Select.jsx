@@ -11,6 +11,7 @@ export function Select({
   required = false,
   placeholder = 'Selecione...',
   className = '',
+  children,
   ...props
 }) {
   return (
@@ -29,12 +30,16 @@ export function Select({
         required={required}
         {...props}
       >
-        <option value="">{placeholder}</option>
-        {options.map((option, index) => (
-          <option key={index} value={typeof option === 'object' ? option.value : option}>
-            {typeof option === 'object' ? option.label : option}
-          </option>
-        ))}
+        {children || (
+          <>
+            <option value="">{placeholder}</option>
+            {options.map((option, index) => (
+              <option key={index} value={typeof option === 'object' ? option.value : option}>
+                {typeof option === 'object' ? option.label : option}
+              </option>
+            ))}
+          </>
+        )}
       </select>
       {error && (
         <span className="text-sm" style={{ color: 'var(--danger-500)' }}>
