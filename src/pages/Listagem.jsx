@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Search,
   Edit,
-  Trash2,
   Eye,
   ChevronLeft,
   ChevronRight,
   ArrowUp,
   ArrowDown,
   Download,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
@@ -32,6 +33,7 @@ export function Listagem({ onEdit, onView }) {
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [modalDelete, setModalDelete] = useState({ isOpen: false, escritura: null });
   const [exporting, setExporting] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Ordenação
   const [ordenacao, setOrdenacao] = useState({ campo: 'createdAt', direcao: 'desc' });
@@ -50,9 +52,7 @@ export function Listagem({ onEdit, onView }) {
   // Debounce na busca de texto para melhor performance
   const textoBuscaDebounced = useDebounce(filtros.texto, 300);
 
-  useEffect(() => {
-    carregarEscrituras();
-  }, []);
+  useEffect(() => { carregarEscrituras(); }, [showArchived]);
 
   useEffect(() => {
     aplicarFiltrosEOrdenacao();
@@ -71,7 +71,7 @@ export function Listagem({ onEdit, onView }) {
   async function carregarEscrituras() {
     try {
       setLoading(true);
-      const dados = await escriturasAPI.getAll();
+      const dados = await escriturasAPI.getAll(showArchived ? { arquivadas: 'somente' } : {});
       setEscrituras(dados);
       setEscriturasFiltradas(dados);
     } catch (error) {
@@ -166,12 +166,22 @@ export function Listagem({ onEdit, onView }) {
   async function handleDelete(id) {
     try {
       await escriturasAPI.delete(id);
-      toast.success('Escritura excluída com sucesso!');
+      toast.success('Escritura arquivada. Ela pode ser restaurada quando necessário.');
       await carregarEscrituras();
       setModalDelete({ isOpen: false, escritura: null });
     } catch (error) {
       console.error('Erro ao excluir:', error);
       toast.error(error.response?.data?.error || 'Erro ao excluir escritura');
+    }
+  }
+
+  async function handleRestore(id) {
+    try {
+      await escriturasAPI.restore(id);
+      toast.success('Escritura restaurada com sucesso');
+      await carregarEscrituras();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao restaurar escritura');
     }
   }
 
@@ -227,16 +237,12 @@ export function Listagem({ onEdit, onView }) {
             {escriturasFiltradas.length === 1 ? 'escritura encontrada' : 'escrituras encontradas'}
           </p>
         </div>
-        {escriturasFiltradas.length > 0 && (
-          <Button
-            variant="success"
-            icon={Download}
-            onClick={handleExportarFiltrados}
-            disabled={exporting}
-          >
-            {exporting ? 'Exportando...' : 'Exportar Resultados'}
+        <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap' }}>
+          <Button variant="secondary" icon={showArchived ? ArchiveRestore : Archive} onClick={() => setShowArchived((value) => !value)}>
+            {showArchived ? 'Ver ativos' : 'Ver arquivados'}
           </Button>
-        )}
+          {escriturasFiltradas.length > 0 && <Button variant="success" icon={Download} onClick={handleExportarFiltrados} disabled={exporting}>{exporting ? 'Exportando...' : 'Exportar Resultados'}</Button>}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -330,8 +336,10 @@ export function Listagem({ onEdit, onView }) {
                     <td>
                       <div style={{ display: 'flex', gap: '0.375rem', justifyContent: 'center' }}>
                         <Button variant="secondary" size="sm" onClick={() => onView && onView(escritura)} icon={Eye} title="Visualizar" />
-                        <Button variant="secondary" size="sm" onClick={() => onEdit && onEdit(escritura)} icon={Edit} title="Editar" />
-                        <Button variant="danger" size="sm" onClick={() => setModalDelete({ isOpen: true, escritura })} icon={Trash2} title="Excluir" />
+                        {!showArchived && <Button variant="secondary" size="sm" onClick={() => onEdit && onEdit(escritura)} icon={Edit} title="Editar" />}
+                        {showArchived
+                          ? <Button variant="success" size="sm" onClick={() => handleRestore(escritura.id)} icon={ArchiveRestore} title="Restaurar" />
+                          : <Button variant="danger" size="sm" onClick={() => setModalDelete({ isOpen: true, escritura })} icon={Archive} title="Arquivar" />}
                       </div>
                     </td>
                   </tr>
@@ -363,7 +371,7 @@ export function Listagem({ onEdit, onView }) {
       <Modal
         isOpen={modalDelete.isOpen}
         onClose={() => setModalDelete({ isOpen: false, escritura: null })}
-        title="Confirmar Exclusão"
+        title="Arquivar escritura"
         size="sm"
         footer={
           <>
@@ -374,16 +382,16 @@ export function Listagem({ onEdit, onView }) {
               Cancelar
             </Button>
             <Button variant="danger" onClick={() => handleDelete(modalDelete.escritura?.id)}>
-              Excluir
+              Arquivar
             </Button>
           </>
         }
       >
         <p>
-          Tem certeza que deseja excluir a escritura <strong>{modalDelete.escritura?.tipo}</strong>?
+          Deseja arquivar a escritura <strong>{modalDelete.escritura?.tipo}</strong>?
         </p>
         <p className="text-sm text-secondary" style={{ marginTop: 'var(--spacing-sm)' }}>
-          Esta ação não pode ser desfeita.
+          Ela sairá das telas operacionais, mas poderá ser restaurada na área de arquivados.
         </p>
       </Modal>
     </div>

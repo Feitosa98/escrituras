@@ -39,6 +39,8 @@ try { require('./migrate_email_cliente'); } catch(e) { console.warn('Aviso migra
 
 // Credenciais públicas de acompanhamento e janela de acesso dos usuários
 try { require('./migrate_acompanhamento_acesso'); } catch(e) { console.warn('Aviso migração acompanhamento/acesso:', e.message); }
+
+try { require('./migrate_operacao_diaria').migrate(); } catch(e) { console.warn('Aviso migração operação diária:', e.message); }
 }
 
 function getNetworkIp() {

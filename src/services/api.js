@@ -63,6 +63,10 @@ export const authAPI = {
 
 // ========== USERS ==========
 export const usersAPI = {
+  getOptions: async () => {
+    const response = await api.get('/users/options');
+    return response.data;
+  },
   getAll: async () => {
     const response = await api.get('/users');
     return response.data;
@@ -118,6 +122,40 @@ export const escriturasAPI = {
 
   updateStatus: async (id, status, observacao = '') => {
     const response = await api.patch(`/escrituras/${id}/status`, { status, observacao });
+    return response.data;
+  },
+
+  updateOperation: async (id, data) => {
+    const response = await api.patch(`/escrituras/${id}/operacao`, data);
+    return response.data;
+  },
+
+  restore: async (id) => {
+    const response = await api.patch(`/escrituras/${id}/restaurar`);
+    return response.data;
+  },
+
+  getChecklist: async (id) => {
+    const response = await api.get(`/escrituras/${id}/checklist`);
+    return response.data;
+  },
+
+  addChecklistItem: async (id, titulo) => {
+    const response = await api.post(`/escrituras/${id}/checklist`, { titulo });
+    return response.data;
+  },
+
+  updateChecklistItem: async (id, itemId, concluido) => {
+    const response = await api.patch(`/escrituras/${id}/checklist/${itemId}`, { concluido });
+    return response.data;
+  },
+
+  removeChecklistItem: async (id, itemId) => {
+    await api.delete(`/escrituras/${id}/checklist/${itemId}`);
+  },
+
+  getMeuTrabalho: async () => {
+    const response = await api.get('/escrituras/meu-trabalho');
     return response.data;
   },
 

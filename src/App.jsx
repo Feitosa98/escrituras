@@ -15,6 +15,7 @@ import Sidebar from './components/layout/Sidebar';
 import Footer from './components/layout/Footer';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import MeuTrabalho from './pages/MeuTrabalho';
 import Listagem from './pages/Listagem';
 import Kanban from './pages/Kanban';
 import Cadastro from './pages/Cadastro';
@@ -203,7 +204,8 @@ function AppContent() {
         <main style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{ minHeight: '100%', padding: '1.5rem 2rem' }}>
             <Routes>
-              <Route path="/" element={<Dashboard key={refreshKey} />} />
+              <Route path="/" element={<MeuTrabalho key={refreshKey} onView={handleView} />} />
+              <Route path="/visao-geral" element={<Dashboard key={refreshKey} />} />
               <Route
                 path="/listagem"
                 element={<Listagem key={refreshKey} onEdit={handleEdit} onView={handleView} />}
@@ -237,6 +239,7 @@ function AppContent() {
                     escritura={escrituraView}
                     onEdit={handleEdit}
                     onClose={() => navigate('/listagem')}
+                    onUpdated={(updated) => { setEscrituraView(updated); setRefreshKey((prev) => prev + 1); }}
                   />
                 }
               />

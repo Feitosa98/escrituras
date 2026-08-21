@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ScrollText,
-  ClipboardList,
   Plus,
   Download,
   Users,
@@ -14,6 +13,8 @@ import {
   TrendingUp,
   Globe,
   BookOpen,
+  BriefcaseBusiness,
+  Columns3,
 } from 'lucide-react';
 import { escriturasAPI } from '../../services/api';
 
@@ -59,9 +60,9 @@ export function Sidebar({ userRole, user }) {
   const hasPermission  = (req) => (roleHierarchy[userRole] || 0) >= (roleHierarchy[req] || 0);
 
   const mainItems = [
-    { id: '/', label: 'Visão geral',     icon: LayoutDashboard, permission: 'visualizador', exact: true },
+    { id: '/', label: 'Meu trabalho', icon: BriefcaseBusiness, permission: 'visualizador', exact: true },
+    { id: '/visao-geral', label: 'Visão geral', icon: LayoutDashboard, permission: 'visualizador' },
     { id: '/listagem', label: 'Escrituras', icon: ScrollText,   permission: 'visualizador', badge: total },
-    { id: '/workflow', label: 'Processos',  icon: ClipboardList, permission: 'editor' },
     { id: '/cadastro', label: 'Nova Escritura', icon: Plus,     permission: 'editor' },
     { id: '/exportar', label: 'Relatórios', icon: TrendingUp,   permission: 'visualizador' },
     { id: '/metas',    label: 'Metas',      icon: Target,       permission: 'visualizador' },
@@ -69,6 +70,7 @@ export function Sidebar({ userRole, user }) {
   ];
 
   const adminItems = [
+    { id: '/workflow', label: 'Visão por etapas', icon: Columns3, permission: 'editor' },
     { id: '/usuarios',       label: 'Equipe',       icon: Users,    permission: 'admin' },
     { id: '/tipos-escritura',label: 'Tipos',         icon: FileText, permission: 'editor' },
     { id: '/escreventes',    label: 'Escreventes',   icon: BookOpen, permission: 'admin' },

@@ -104,17 +104,17 @@ export function GerenciarUsuarios() {
   }
 
   async function handleDelete(user) {
-    if (!window.confirm(`Tem certeza que deseja excluir o usuário ${user.nome}?`)) {
+    if (!window.confirm(`Deseja desativar o acesso de ${user.nome}? O histórico será preservado.`)) {
       return;
     }
 
     try {
       await usersAPI.delete(user.id);
-      toast.success('Usuário excluído com sucesso!');
+      toast.success('Usuário desativado com sucesso!');
       loadUsers();
     } catch (error) {
-      console.error('Erro ao excluir usuário:', error);
-      toast.error(error.response?.data?.error || 'Erro ao excluir usuário');
+      console.error('Erro ao desativar usuário:', error);
+      toast.error(error.response?.data?.error || 'Erro ao desativar usuário');
     }
   }
 
@@ -189,7 +189,7 @@ export function GerenciarUsuarios() {
                         size="sm"
                         icon={Trash2}
                         onClick={() => handleDelete(user)}
-                        title="Excluir"
+                        title="Desativar acesso"
                       />
                     </div>
                   </td>
