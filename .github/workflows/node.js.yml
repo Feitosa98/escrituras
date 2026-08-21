@@ -33,3 +33,53 @@ jobs:
       run: npm run build
     - name: Dependency audit
       run: npm audit --audit-level=high
+
+  hostinger-cloud:
+    name: Hostinger Cloud PHP/MySQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root_test_password
+          MYSQL_DATABASE: escrituras_test
+          MYSQL_USER: escrituras_app
+          MYSQL_PASSWORD: app_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot_test_password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate PHP syntax
+        run: find hostinger -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Prepare MySQL database
+        run: mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test < hostinger/schema.mysql.sql
+      - name: Configure isolated test environment
+        run: |
+          cp hostinger/config.example.php hostinger/config.php
+          sed -i "s/'host' => 'localhost'/'host' => '127.0.0.1'/; s/u000000000_escrituras/escrituras_test/; s/u000000000_app/escrituras_app/; s/ALTERE_ESTA_SENHA/app_test_password/; s/ALTERE_POR_UM_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_jwt_secret_0123456789012345678901234567890123456789/; s/ALTERE_POR_OUTRO_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_encryption_secret_012345678901234567890123456789/" hostinger/config.php
+      - name: Run API smoke tests
+        run: |
+          HASH=$(php -r 'echo password_hash("Senha-De-Teste-2026!", PASSWORD_BCRYPT);')
+          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test -e "INSERT INTO users(uuid,nome,username,email,senha_hash,role,access_start,access_end) VALUES(UUID(),'Administrador Sistema','admin.sistema','admin@sistema.local','$HASH','admin','00:00','23:59');"
+          php -S 127.0.0.1:8080 hostinger/dev-router.php >/tmp/escrituras-php.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID; cat /tmp/escrituras-php.log' EXIT
+          for i in {1..20}; do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 1; done
+          LOGIN=$(curl -fsS -H 'Content-Type: application/json' -d '{"usuario":"admin.sistema","senha":"Senha-De-Teste-2026!"}' http://127.0.0.1:8080/api/auth/login)
+          TOKEN=$(printf '%s' "$LOGIN" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["token"]??"";')
+          test -n "$TOKEN"
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/users/options
+          ACT=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"tipo":"ESCRITURA PUBLICA","tipoAcompanhamento":"EPTT","selagem":"2026-08-21","livro":"TESTE-1","folha":"1","outorgante":"REQUERENTE TESTE","outorgado":"OUTORGADO TESTE","emailCliente":"teste@example.com","escrevente":"Administrador Sistema","tipoLivro":"NOTAS","mes":"08","ano":"2026"}' http://127.0.0.1:8080/api/escrituras)
+          CODE=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["acompanhamento_codigo"]??"";')
+          PASS=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["senha_cliente"]??"";')
+          ID=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["id"]??"";')
+          test -n "$CODE" && test -n "$PASS" && test -n "$ID"
+          DETAIL=$(curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/escrituras/$ID)
+          ! printf '%s' "$DETAIL" | grep -q 'senha_cliente'
+          curl -fsS -H 'Content-Type: application/json' -d "{\"codigo\":\"$CODE\",\"senha\":\"$PASS\"}" http://127.0.0.1:8080/api/consulta
