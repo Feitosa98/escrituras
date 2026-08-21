@@ -16,6 +16,7 @@
     "dev:backend": "node --watch backend/server.js",
     "dev:frontend": "vite",
     "build": "vite build",
+    "build:hostinger": "vite build && node scripts/package-hostinger.mjs",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "lint": "eslint .",
