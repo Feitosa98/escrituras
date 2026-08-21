@@ -1,22 +1,41 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Printer, Shield, Copy, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, Plus, User, Circle } from 'lucide-react';
+import { Printer, Shield, Copy, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, Plus, User, Circle, Save, Trash2, ListChecks } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { AgendamentoModal } from '../components/agendamentos/AgendamentoModal';
+import { useToast } from '../components/ui/Toast';
+import { escriturasAPI, usersAPI } from '../services/api';
 
 const STATUS_CONFIG = {
+  'Abertura de protocolo': { color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe', icon: Clock },
+  'Orçamento / Documentação': { color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: AlertCircle },
+  'Minuta / Solicitações': { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: Clock },
+  'Assinatura': { color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', icon: Clock },
+  'Prenotação': { color: '#db2777', bg: '#fdf2f8', border: '#fbcfe8', icon: Clock },
   'Aguardando cliente': { color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: AlertCircle },
   'Em andamento':       { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', icon: Clock },
   'Concluído':          { color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: CheckCircle2 },
 };
 
-export function Detalhes({ escritura, onClose, onEdit }) {
+const STATUS_OPTIONS = [
+  'Abertura de protocolo', 'Orçamento / Documentação', 'Minuta / Solicitações',
+  'Aguardando cliente', 'Assinatura', 'Prenotação', 'Concluído'
+];
+
+export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
+  const toast = useToast();
   const [agendamentos, setAgendamentos] = useState([]);
   const [modalAgendamentoOpen, setModalAgendamentoOpen] = useState(false);
   const [agendamentoEdit, setAgendamentoEdit] = useState(null);
+  const [usuarios, setUsuarios] = useState([]);
+  const [checklist, setChecklist] = useState([]);
+  const [novoItem, setNovoItem] = useState('');
+  const [savingOperation, setSavingOperation] = useState(false);
+  const [operation, setOperation] = useState({ status: '', responsavel_id: '', prazo_data: '', observacao: '' });
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const escrituraId = escritura?.id;
+  const canEditOperation = ['admin', 'editor'].includes(currentUser.role);
 
   const fetchAgendamentosEscritura = useCallback(async () => {
     if (!escrituraId) return;
@@ -37,11 +56,27 @@ export function Detalhes({ escritura, onClose, onEdit }) {
 
   useEffect(() => {
     if (escrituraId) {
-      // A função atualiza o estado apenas após a resposta assíncrona da API.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAgendamentosEscritura();
     }
   }, [escrituraId, fetchAgendamentosEscritura]);
+
+  const fetchChecklist = useCallback(async () => {
+    if (!escrituraId) return;
+    try { setChecklist(await escriturasAPI.getChecklist(escrituraId)); }
+    catch { toast.error('Não foi possível carregar o checklist'); }
+  }, [escrituraId, toast]);
+
+  useEffect(() => {
+    if (!escrituraId) return;
+    setOperation({
+      status: escritura.status || 'Abertura de protocolo',
+      responsavel_id: escritura.responsavel_id ? String(escritura.responsavel_id) : '',
+      prazo_data: String(escritura.prazo_data || '').slice(0, 10),
+      observacao: '',
+    });
+    fetchChecklist();
+    usersAPI.getOptions().then((items) => setUsuarios(items.filter((u) => u.ativo))).catch(() => setUsuarios([]));
+  }, [escrituraId, escritura.status, escritura.responsavel_id, escritura.prazo_data, fetchChecklist]);
 
   if (!escritura) return null;
 
@@ -61,6 +96,42 @@ export function Detalhes({ escritura, onClose, onEdit }) {
     } catch (err) {
       console.error('Erro ao atualizar agendamento:', err);
     }
+  }
+
+  async function saveOperation() {
+    try {
+      setSavingOperation(true);
+      const updated = await escriturasAPI.updateOperation(escrituraId, operation);
+      onUpdated?.(updated);
+      setOperation((prev) => ({ ...prev, observacao: '' }));
+      toast.success('Operação do ato atualizada');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Erro ao atualizar o ato');
+    } finally { setSavingOperation(false); }
+  }
+
+  async function toggleChecklist(item) {
+    try {
+      await escriturasAPI.updateChecklistItem(escrituraId, item.id, !item.concluido);
+      await fetchChecklist();
+    } catch { toast.error('Erro ao atualizar o checklist'); }
+  }
+
+  async function addChecklist() {
+    const titulo = novoItem.trim();
+    if (!titulo) return;
+    try {
+      await escriturasAPI.addChecklistItem(escrituraId, titulo);
+      setNovoItem('');
+      await fetchChecklist();
+    } catch (error) { toast.error(error.response?.data?.error || 'Erro ao adicionar item'); }
+  }
+
+  async function removeChecklist(itemId) {
+    try {
+      await escriturasAPI.removeChecklistItem(escrituraId, itemId);
+      await fetchChecklist();
+    } catch { toast.error('Erro ao remover item'); }
   }
 
   const formatarData = (data) => {
@@ -465,6 +536,67 @@ export function Detalhes({ escritura, onClose, onEdit }) {
           </p>
         </div>
       </div>
+
+      {/* Mesa operacional: todas as mudanças do ato em um só lugar */}
+      <Card style={{ marginBottom: '1.25rem', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '.7rem', marginBottom: '1rem' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '.65rem', background: '#0f2d46', color: '#e8c66a', display: 'grid', placeItems: 'center' }}><ListChecks size={18} /></div>
+          <div>
+            <h3 style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>Operação do ato</h3>
+            <p style={{ fontSize: '.76rem', color: 'var(--text-tertiary)' }}>Atualize etapa, responsável, prazo e pendências sem sair desta ficha.</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '.8rem', alignItems: 'end' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', fontSize: '.78rem', fontWeight: 650, color: 'var(--text-secondary)' }}>
+            Etapa atual
+            <select value={operation.status} disabled={!canEditOperation} onChange={(e) => setOperation((prev) => ({ ...prev, status: e.target.value }))} style={{ minHeight: 42, border: '1px solid var(--border-color)', borderRadius: '.5rem', padding: '0 .7rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+              {STATUS_OPTIONS.map((status) => <option key={status}>{status}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', fontSize: '.78rem', fontWeight: 650, color: 'var(--text-secondary)' }}>
+            Responsável
+            <select value={operation.responsavel_id} disabled={!canEditOperation} onChange={(e) => setOperation((prev) => ({ ...prev, responsavel_id: e.target.value }))} style={{ minHeight: 42, border: '1px solid var(--border-color)', borderRadius: '.5rem', padding: '0 .7rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+              <option value="">Não atribuído</option>
+              {usuarios.map((user) => <option key={user.id} value={user.id}>{user.nome}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', fontSize: '.78rem', fontWeight: 650, color: 'var(--text-secondary)' }}>
+            Prazo do ato
+            <input type="date" value={operation.prazo_data} disabled={!canEditOperation} onChange={(e) => setOperation((prev) => ({ ...prev, prazo_data: e.target.value }))} style={{ minHeight: 42, border: '1px solid var(--border-color)', borderRadius: '.5rem', padding: '0 .7rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+          </label>
+        </div>
+        {canEditOperation && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '.7rem', marginTop: '.8rem', alignItems: 'end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '.35rem', fontSize: '.78rem', fontWeight: 650, color: 'var(--text-secondary)' }}>
+              Observação da movimentação
+              <input value={operation.observacao} maxLength={500} onChange={(e) => setOperation((prev) => ({ ...prev, observacao: e.target.value }))} placeholder="Ex.: aguardando certidão atualizada" style={{ minHeight: 42, border: '1px solid var(--border-color)', borderRadius: '.5rem', padding: '0 .75rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+            </label>
+            <Button icon={Save} onClick={saveOperation} disabled={savingOperation}>{savingOperation ? 'Salvando...' : 'Salvar operação'}</Button>
+          </div>
+        )}
+
+        <div style={{ marginTop: '1.15rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', marginBottom: '.7rem' }}>
+            <div><p style={{ fontWeight: 750, color: 'var(--text-primary)' }}>Checklist do ato</p><p style={{ fontSize: '.73rem', color: 'var(--text-tertiary)' }}>{checklist.filter((item) => item.concluido).length} de {checklist.length} itens concluídos</p></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '.5rem' }}>
+            {checklist.map((item) => (
+              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '.55rem', padding: '.6rem .7rem', borderRadius: '.5rem', border: '1px solid var(--border-color)', background: item.concluido ? '#ecfdf5' : 'var(--bg-secondary)' }}>
+                <button disabled={!canEditOperation} onClick={() => toggleChecklist(item)} aria-label={item.concluido ? 'Reabrir item' : 'Concluir item'} style={{ border: 0, background: 'transparent', display: 'flex', color: item.concluido ? '#059669' : '#94a3b8', cursor: canEditOperation ? 'pointer' : 'default' }}>{item.concluido ? <CheckCircle2 size={18} /> : <Circle size={18} />}</button>
+                <span style={{ flex: 1, fontSize: '.82rem', color: item.concluido ? '#047857' : 'var(--text-primary)', textDecoration: item.concluido ? 'line-through' : 'none' }}>{item.titulo}</span>
+                {canEditOperation && <button onClick={() => removeChecklist(item.id)} aria-label="Remover item" style={{ border: 0, background: 'transparent', color: '#94a3b8', cursor: 'pointer', display: 'flex' }}><Trash2 size={14} /></button>}
+              </div>
+            ))}
+          </div>
+          {canEditOperation && (
+            <div style={{ display: 'flex', gap: '.5rem', marginTop: '.7rem' }}>
+              <input value={novoItem} maxLength={180} onChange={(e) => setNovoItem(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addChecklist(); } }} placeholder="Adicionar uma pendência específica..." style={{ flex: 1, minHeight: 40, border: '1px solid var(--border-color)', borderRadius: '.5rem', padding: '0 .75rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+              <Button variant="secondary" icon={Plus} onClick={addChecklist}>Adicionar</Button>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Data grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

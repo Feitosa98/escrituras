@@ -110,49 +110,56 @@ class Escritura {
     }
 
     static findAll(filters = {}) {
-        let query = 'SELECT * FROM escrituras WHERE 1=1';
+        let query = `SELECT e.*, responsavel.nome AS responsavel_nome
+            FROM escrituras e
+            LEFT JOIN users responsavel ON responsavel.id = e.responsavel_id
+            WHERE 1=1`;
         const params = [];
 
+        if (filters.arquivadas === 'somente') query += ' AND e.archived_at IS NOT NULL';
+        else if (filters.arquivadas !== 'todas') query += ' AND e.archived_at IS NULL';
+
         if (filters.tipo) {
-            query += ' AND tipo = ?';
+            query += ' AND e.tipo = ?';
             params.push(filters.tipo);
         }
         if (filters.escrevente) {
-            query += ' AND escrevente = ?';
+            query += ' AND e.escrevente = ?';
             params.push(filters.escrevente);
         }
         if (filters.ano) {
-            query += ' AND ano = ?';
+            query += ' AND e.ano = ?';
             params.push(filters.ano);
         }
         if (filters.livro) {
-            query += ' AND livro = ?';
+            query += ' AND e.livro = ?';
             params.push(filters.livro);
         }
         if (filters.dataInicio) {
-            query += ' AND selagem >= ?';
+            query += ' AND e.selagem >= ?';
             params.push(filters.dataInicio);
         }
         if (filters.dataFim) {
-            query += ' AND selagem <= ?';
+            query += ' AND e.selagem <= ?';
             params.push(filters.dataFim);
         }
         if (filters.busca) {
-            query += ' AND (tipo LIKE ? OR outorgante LIKE ? OR outorgado LIKE ? OR livro LIKE ? OR folha LIKE ?)';
+            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?)';
             const searchTerm = `%${filters.busca}%`;
-            params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+            params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
         }
 
-        query += ' ORDER BY created_at DESC';
+        query += ' ORDER BY e.created_at DESC';
 
         return db.prepare(query).all(...params);
     }
 
     static findById(id) {
         const escritura = db.prepare(`
-            SELECT e.*, criador.nome AS usuario_fez
+            SELECT e.*, criador.nome AS usuario_fez, responsavel.nome AS responsavel_nome
               FROM escrituras e
               LEFT JOIN users criador ON criador.id = e.created_by
+              LEFT JOIN users responsavel ON responsavel.id = e.responsavel_id
              WHERE e.id = ?
         `).get(id);
         return this.withSigners(escritura);
@@ -160,9 +167,10 @@ class Escritura {
 
     static findByUuid(uuid) {
         const escritura = db.prepare(`
-            SELECT e.*, criador.nome AS usuario_fez
+            SELECT e.*, criador.nome AS usuario_fez, responsavel.nome AS responsavel_nome
               FROM escrituras e
               LEFT JOIN users criador ON criador.id = e.created_by
+              LEFT JOIN users responsavel ON responsavel.id = e.responsavel_id
              WHERE e.uuid = ?
         `).get(uuid);
         return this.withSigners(escritura);
@@ -224,8 +232,8 @@ class Escritura {
         uuid, tipo, selagem, livro, folha, outorgante, outorgado, email_cliente,
         escrevente, tipo_livro, mes, ano, observacao, created_by, integrity_hash,
         status, prazo_dias, valor_receita, senha_cliente, acompanhamento_codigo,
-        tipo_acompanhamento, gera_acompanhamento, protocolo_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        tipo_acompanhamento, gera_acompanhamento, protocolo_data, responsavel_id, prazo_data
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
         const result = stmt.run(
@@ -251,7 +259,9 @@ class Escritura {
             acompanhamentoCodigo,
             trackingPrefix,
             geraAcompanhamento ? 1 : 0,
-            protocoloData
+            protocoloData,
+            data.responsavelId || data.responsavel_id || userId,
+            data.prazoData || data.prazo_data || null
         );
 
         const newId = result.lastInsertRowid;
@@ -259,6 +269,8 @@ class Escritura {
 
         // Atualizar o protocolo agora que temos o ID
         db.prepare(`UPDATE escrituras SET protocolo = ? WHERE id = ?`).run(protocolo, newId);
+
+        require('../migrate_operacao_diaria').ensureDefaultChecklist(newId, userId);
 
         return this.findById(newId);
     }
@@ -323,13 +335,110 @@ class Escritura {
         return this.findById(id);
     }
 
+    static updateOperation(id, data, userId) {
+        const current = this.findById(id);
+        if (!current) return null;
+        const newStatus = data.status || current.status;
+        const responsavelId = data.responsavel_id === '' || data.responsavel_id === null
+            ? null
+            : (data.responsavel_id || current.responsavel_id || null);
+        const prazoData = data.prazo_data === '' ? null : (data.prazo_data || current.prazo_data || null);
+        const responsavel = responsavelId
+            ? db.prepare('SELECT nome FROM users WHERE id = ?').get(responsavelId)
+            : null;
+
+        db.prepare(`
+            UPDATE escrituras
+               SET status = ?, responsavel_id = ?, prazo_data = ?, escrevente = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?
+        `).run(newStatus, responsavelId, prazoData, responsavel?.nome || current.escrevente, userId, id);
+
+        if (newStatus !== current.status) {
+            db.prepare(`
+                INSERT INTO workflow_history (escritura_id, status_anterior, status_novo, observacao, created_by)
+                VALUES (?, ?, ?, ?, ?)
+            `).run(id, current.status, newStatus, data.observacao || null, userId);
+        }
+        return this.findById(id);
+    }
+
+    static archive(id, userId) {
+        return db.prepare(`UPDATE escrituras SET archived_at = CURRENT_TIMESTAMP, archived_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(userId, id);
+    }
+
+    static restore(id, userId) {
+        return db.prepare(`UPDATE escrituras SET archived_at = NULL, archived_by = NULL, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(userId, id);
+    }
+
+    static getChecklist(id) {
+        return db.prepare(`
+            SELECT c.*, u.nome AS concluido_por
+              FROM checklist_items c
+              LEFT JOIN users u ON u.id = c.concluido_by
+             WHERE c.escritura_id = ?
+             ORDER BY c.ordem, c.id
+        `).all(id);
+    }
+
+    static addChecklistItem(id, titulo, userId) {
+        const order = db.prepare('SELECT COALESCE(MAX(ordem), 0) + 1 AS proxima FROM checklist_items WHERE escritura_id = ?').get(id).proxima;
+        const result = db.prepare(`INSERT INTO checklist_items (escritura_id, titulo, ordem, created_by) VALUES (?, ?, ?, ?)`).run(id, titulo, order, userId);
+        return db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(result.lastInsertRowid);
+    }
+
+    static toggleChecklistItem(id, itemId, concluido, userId) {
+        db.prepare(`
+            UPDATE checklist_items
+               SET concluido = ?, concluido_by = ?, concluido_at = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND escritura_id = ?
+        `).run(concluido ? 1 : 0, concluido ? userId : null, concluido ? new Date().toISOString() : null, itemId, id);
+        return db.prepare('SELECT * FROM checklist_items WHERE id = ? AND escritura_id = ?').get(itemId, id);
+    }
+
+    static removeChecklistItem(id, itemId) {
+        return db.prepare('DELETE FROM checklist_items WHERE id = ? AND escritura_id = ?').run(itemId, id);
+    }
+
+    static getMeuTrabalho(user, hoje) {
+        const atos = db.prepare(`
+            SELECT e.*, responsavel.nome AS responsavel_nome,
+                   (SELECT COUNT(*) FROM checklist_items c WHERE c.escritura_id = e.id) AS checklist_total,
+                   (SELECT COUNT(*) FROM checklist_items c WHERE c.escritura_id = e.id AND c.concluido = 1) AS checklist_concluido
+              FROM escrituras e
+              LEFT JOIN users responsavel ON responsavel.id = e.responsavel_id
+             WHERE e.archived_at IS NULL
+               AND e.status <> 'Concluído'
+               AND (e.responsavel_id = ? OR (e.responsavel_id IS NULL AND e.escrevente = ?))
+             ORDER BY CASE WHEN e.prazo_data IS NULL THEN 1 ELSE 0 END, e.prazo_data, e.updated_at DESC
+        `).all(user.id, user.nome);
+        const tarefas = db.prepare(`
+            SELECT a.*, e.protocolo, e.tipo, e.outorgante
+              FROM agendamentos a
+              LEFT JOIN escrituras e ON e.id = a.escritura_id
+             WHERE a.user_id = ? AND a.concluido = 0 AND (e.archived_at IS NULL OR e.id IS NULL)
+             ORDER BY a.data_agendada
+        `).all(user.id);
+        return {
+            hoje,
+            atos,
+            tarefas,
+            resumo: {
+                atos: atos.length,
+                atrasados: atos.filter((item) => item.prazo_data && String(item.prazo_data).slice(0, 10) < hoje).length,
+                vencemHoje: atos.filter((item) => String(item.prazo_data || '').slice(0, 10) === hoje).length,
+                aguardandoCliente: atos.filter((item) => item.status === 'Aguardando cliente').length,
+                tarefasHoje: tarefas.filter((item) => String(item.data_agendada || '').slice(0, 10) === hoje).length,
+            }
+        };
+    }
+
     static delete(id) {
         const stmt = db.prepare('DELETE FROM escrituras WHERE id = ?');
         return stmt.run(id);
     }
 
     static count(filters = {}) {
-        let query = 'SELECT COUNT(*) as total FROM escrituras WHERE 1=1';
+        let query = 'SELECT COUNT(*) as total FROM escrituras WHERE archived_at IS NULL';
         const params = [];
 
         if (filters.tipo) {
@@ -345,27 +454,27 @@ class Escritura {
     }
 
     static getStats() {
-        const total = db.prepare('SELECT COUNT(*) as total FROM escrituras').get().total;
+        const total = db.prepare('SELECT COUNT(*) as total FROM escrituras WHERE archived_at IS NULL').get().total;
 
-        const recentes = db.prepare('SELECT * FROM escrituras ORDER BY created_at DESC LIMIT 10').all();
+        const recentes = db.prepare('SELECT * FROM escrituras WHERE archived_at IS NULL ORDER BY created_at DESC LIMIT 10').all();
 
         const porTipo = db.prepare(`
       SELECT tipo, COUNT(*) as count 
-      FROM escrituras 
+      FROM escrituras WHERE archived_at IS NULL
       GROUP BY tipo 
       ORDER BY count DESC
     `).all();
 
         const porEscrevente = db.prepare(`
       SELECT escrevente, COUNT(*) as count 
-      FROM escrituras 
+      FROM escrituras WHERE archived_at IS NULL
       GROUP BY escrevente 
       ORDER BY count DESC
     `).all();
 
         const porMes = db.prepare(`
       SELECT mes || '/' || ano as periodo, COUNT(*) as count 
-      FROM escrituras 
+      FROM escrituras WHERE archived_at IS NULL
       GROUP BY ano, mes 
       ORDER BY ano, mes
     `).all();

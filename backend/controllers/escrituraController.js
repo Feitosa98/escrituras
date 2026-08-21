@@ -18,7 +18,8 @@ async function getAll(req, res) {
             livro: req.query.livro,
             dataInicio: req.query.dataInicio,
             dataFim: req.query.dataFim,
-            busca: req.query.busca
+            busca: req.query.busca,
+            arquivadas: req.query.arquivadas
         };
 
         const escrituras = Escritura.findAll(filters);
@@ -135,15 +136,127 @@ async function remove(req, res) {
             return res.status(404).json({ error: 'Escritura não encontrada' });
         }
 
-        Escritura.delete(escritura.id);
+        Escritura.archive(escritura.id, req.user.id);
 
         // Audit log
-        await auditLog(req, 'DELETE', 'escrituras', escritura.id, escritura, null);
+        await auditLog(req, 'ARCHIVE', 'escrituras', escritura.id, escritura, { archived: true });
 
-        res.json({ message: 'Escritura deletada com sucesso' });
+        res.json({ message: 'Escritura arquivada com sucesso' });
     } catch (error) {
         console.error('Erro ao deletar escritura:', error);
         res.status(500).json({ error: 'Erro ao deletar escritura' });
+    }
+}
+
+async function restore(req, res) {
+    try {
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        Escritura.restore(escritura.id, req.user.id);
+        const restored = Escritura.findById(escritura.id);
+        await auditLog(req, 'RESTORE', 'escrituras', escritura.id, escritura, restored);
+        res.json(restored);
+    } catch (error) {
+        console.error('Erro ao restaurar escritura:', error);
+        res.status(500).json({ error: 'Erro ao restaurar escritura' });
+    }
+}
+
+async function updateOperation(req, res) {
+    try {
+        const allowedStatuses = [
+            'Abertura de protocolo', 'Orçamento / Documentação', 'Minuta / Solicitações',
+            'Aguardando cliente', 'Assinatura', 'Prenotação', 'Concluído'
+        ];
+        const status = String(req.body.status || '').trim();
+        if (status && !allowedStatuses.includes(status)) {
+            return res.status(400).json({ error: 'Etapa inválida' });
+        }
+        if (req.body.prazo_data && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.prazo_data))) {
+            return res.status(400).json({ error: 'Prazo inválido' });
+        }
+        if (String(req.body.observacao || '').length > 500) {
+            return res.status(400).json({ error: 'A observação deve ter no máximo 500 caracteres' });
+        }
+        if (req.body.responsavel_id) {
+            const db = require('../database');
+            const responsavel = db.prepare('SELECT id FROM users WHERE id = ? AND ativo = 1').get(req.body.responsavel_id);
+            if (!responsavel) return res.status(400).json({ error: 'Responsável inválido ou inativo' });
+        }
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        const updated = Escritura.updateOperation(escritura.id, req.body, req.user.id);
+        await auditLog(req, 'UPDATE_OPERATION', 'escrituras', escritura.id, escritura, updated);
+        const notificacaoEmail = updated.status !== escritura.status
+            ? await sendEscrituraStatusEmail(updated)
+            : { sent: false, reason: 'STATUS_UNCHANGED' };
+        res.json({ ...updated, notificacao_email: notificacaoEmail });
+    } catch (error) {
+        console.error('Erro ao atualizar operação:', error);
+        res.status(500).json({ error: 'Erro ao atualizar a operação do ato' });
+    }
+}
+
+async function getChecklist(req, res) {
+    try {
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        require('../migrate_operacao_diaria').ensureDefaultChecklist(escritura.id, req.user.id);
+        res.json(Escritura.getChecklist(escritura.id));
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao carregar checklist' });
+    }
+}
+
+async function addChecklistItem(req, res) {
+    try {
+        const titulo = String(req.body.titulo || '').trim();
+        if (!titulo || titulo.length > 180) return res.status(400).json({ error: 'Informe um item de até 180 caracteres' });
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        const item = Escritura.addChecklistItem(escritura.id, titulo, req.user.id);
+        await auditLog(req, 'CHECKLIST_ADD', 'escrituras', escritura.id, null, item);
+        res.status(201).json(item);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao adicionar item' });
+    }
+}
+
+async function updateChecklistItem(req, res) {
+    try {
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        const item = Escritura.toggleChecklistItem(escritura.id, req.params.itemId, Boolean(req.body.concluido), req.user.id);
+        if (!item) return res.status(404).json({ error: 'Item não encontrado' });
+        await auditLog(req, 'CHECKLIST_UPDATE', 'escrituras', escritura.id, null, item);
+        res.json(item);
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao atualizar item' });
+    }
+}
+
+async function removeChecklistItem(req, res) {
+    try {
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        Escritura.removeChecklistItem(escritura.id, req.params.itemId);
+        await auditLog(req, 'CHECKLIST_REMOVE', 'escrituras', escritura.id, null, { item_id: req.params.itemId });
+        res.status(204).send();
+    } catch (error) {
+        res.status(500).json({ error: 'Erro ao remover item' });
+    }
+}
+
+async function meuTrabalho(req, res) {
+    try {
+        const hoje = new Intl.DateTimeFormat('en-CA', {
+            timeZone: process.env.APP_TIMEZONE || 'America/Manaus',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
+        res.json(Escritura.getMeuTrabalho(req.user, hoje));
+    } catch (error) {
+        console.error('Erro ao carregar Meu Trabalho:', error);
+        res.status(500).json({ error: 'Erro ao carregar seu trabalho' });
     }
 }
 
@@ -347,4 +460,11 @@ module.exports = {
     updateStatus,
     atividadeHoje,
     getHistorico,
+    restore,
+    updateOperation,
+    getChecklist,
+    addChecklistItem,
+    updateChecklistItem,
+    removeChecklistItem,
+    meuTrabalho,
 };

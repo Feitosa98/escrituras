@@ -163,9 +163,9 @@ async function remove(req, res) {
     try {
         const { id } = req.params;
 
-        // Não permitir deletar o próprio usuário
+        // Não permitir desativar o próprio usuário
         if (parseInt(id) === req.user.id) {
-            return res.status(400).json({ error: 'Não é possível deletar seu próprio usuário' });
+            return res.status(400).json({ error: 'Não é possível desativar seu próprio usuário' });
         }
 
         const user = User.findById(id);
@@ -173,15 +173,15 @@ async function remove(req, res) {
             return res.status(404).json({ error: 'Usuário não encontrado' });
         }
 
-        User.delete(id);
+        const updated = User.update(id, { ativo: 0 });
 
         // Audit log
-        await auditLog(req, 'DELETE', 'users', id, user, null);
+        await auditLog(req, 'DEACTIVATE', 'users', id, user, updated);
 
-        res.json({ message: 'Usuário deletado com sucesso' });
+        res.json({ message: 'Usuário desativado com sucesso' });
     } catch (error) {
-        console.error('Erro ao deletar usuário:', error);
-        res.status(500).json({ error: 'Erro ao deletar usuário' });
+        console.error('Erro ao desativar usuário:', error);
+        res.status(500).json({ error: 'Erro ao desativar usuário' });
     }
 }
 
