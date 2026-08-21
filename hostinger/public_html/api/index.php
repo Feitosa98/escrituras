@@ -10,6 +10,7 @@ require __DIR__ . '/handlers/audit.php';
 require __DIR__ . '/handlers/schedule.php';
 require __DIR__ . '/handlers/public_consultation.php';
 require __DIR__ . '/handlers/goals.php';
+require __DIR__ . '/handlers/company.php';
 
 try {
     $method = request_method();
@@ -29,6 +30,7 @@ try {
         'agendamentos' => handle_schedule($method, $parts),
         'consulta' => handle_public_consultation($method),
         'metas' => handle_goals($method, $parts),
+        'cnpj' => handle_company($method, $parts),
         default => fail('Rota nao encontrada', 404),
     };
 } catch (PDOException $error) {

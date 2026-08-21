@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Save, X, AlertCircle } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
-import { escriturasAPI } from '../services/api';
+import { cnpjAPI, escriturasAPI } from '../services/api';
 import { formatCpfCnpj, isValidCpfCnpjLength, normalizeCpfCnpj } from '../utils/document';
 import '../styles/index.css';
 
@@ -46,6 +46,10 @@ const MESES = [
 export function Cadastro({ escritura, onSaveSuccess }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [consultingCnpj, setConsultingCnpj] = useState({ outorgante: false, outorgado: false });
+  const protocolEdited = useRef(false);
+  const suggestedProtocol = useRef('');
+  const consultedCnpjs = useRef(new Map());
   const [formData, setFormData] = useState({
     tipo: '',
     selagem: '',
@@ -92,6 +96,22 @@ export function Cadastro({ escritura, onSaveSuccess }) {
     }
   }, [escritura]);
 
+  useEffect(() => {
+    if (escritura || protocolEdited.current) return;
+    let active = true;
+    escriturasAPI.getNextProtocol(formData.ano)
+      .then((data) => {
+        if (active && !protocolEdited.current && data?.protocolo) {
+          suggestedProtocol.current = data.protocolo;
+          setFormData((prev) => ({ ...prev, protocolo: data.protocolo }));
+        }
+      })
+      .catch(() => {
+        // O servidor ainda gera o protocolo definitivo ao salvar.
+      });
+    return () => { active = false; };
+  }, [escritura, formData.ano]);
+
   function handleChange(field, value) {
     setFormData((prev) => {
       if (field === 'tipoAcompanhamento') {
@@ -110,6 +130,29 @@ export function Cadastro({ escritura, onSaveSuccess }) {
     }
   }
 
+  async function lookupCompany(party) {
+    const documentField = party === 'outorgante' ? 'cpfCnpjOutorgante' : 'cpfCnpjOutorgado';
+    const nameField = party === 'outorgante' ? 'outorgante' : 'outorgado';
+    const cnpj = normalizeCpfCnpj(formData[documentField]);
+    if (cnpj.length !== 14) return;
+
+    setConsultingCnpj((prev) => ({ ...prev, [party]: true }));
+    try {
+      let company = consultedCnpjs.current.get(cnpj);
+      if (!company) {
+        company = await cnpjAPI.lookup(cnpj);
+        consultedCnpjs.current.set(cnpj, company);
+      }
+      setFormData((prev) => ({ ...prev, [nameField]: company.razaoSocial || company.nomeFantasia || prev[nameField] }));
+      setErrors((prev) => ({ ...prev, [documentField]: '' }));
+      toast.success(`CNPJ localizado: ${company.razaoSocial}`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Não foi possível consultar o CNPJ. Preencha o nome manualmente.');
+    } finally {
+      setConsultingCnpj((prev) => ({ ...prev, [party]: false }));
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     const validationErrors = {};
@@ -124,7 +167,9 @@ export function Cadastro({ escritura, onSaveSuccess }) {
     try {
       const payload = {
         ...formData,
-        protocolo: formData.protocolo.trim(),
+        protocolo: !escritura && formData.protocolo === suggestedProtocol.current
+          ? ''
+          : formData.protocolo.trim(),
         cpfCnpjOutorgante: normalizeCpfCnpj(formData.cpfCnpjOutorgante),
         cpfCnpjOutorgado: normalizeCpfCnpj(formData.cpfCnpjOutorgado),
       };
@@ -233,11 +278,17 @@ export function Cadastro({ escritura, onSaveSuccess }) {
             />
 
             <Input
-              label="Protocolo"
+              label="Protocolo (sequência automática)"
               type="text"
               value={formData.protocolo}
-              onChange={(e) => handleChange('protocolo', e.target.value)}
-              placeholder="Em branco para gerar automaticamente"
+              onChange={(e) => {
+                protocolEdited.current = true;
+                handleChange('protocolo', e.target.value);
+              }}
+              placeholder="Gerado automaticamente"
+              title="A sequência é sugerida pelo sistema e pode ser alterada antes de salvar"
+              hint="O número é sugerido pelo sistema; você pode alterá-lo antes de salvar."
+              maxLength={40}
               error={errors.protocolo}
             />
 
@@ -257,9 +308,14 @@ export function Cadastro({ escritura, onSaveSuccess }) {
               type="text"
               value={formData.cpfCnpjOutorgante}
               onChange={(e) => handleChange('cpfCnpjOutorgante', formatCpfCnpj(e.target.value))}
+              onBlur={() => lookupCompany('outorgante')}
               placeholder="000.000.000-00 ou 00.000.000/0000-00"
               error={errors.cpfCnpjOutorgante}
               inputMode="numeric"
+              disabled={consultingCnpj.outorgante}
+              title="Ao informar um CNPJ completo, a razão social será consultada automaticamente"
+              hint={consultingCnpj.outorgante ? 'Consultando dados do CNPJ...' : 'CPF e CNPJ recebem pontuação automática.'}
+              maxLength={18}
             />
 
             {/* Outorgado */}
@@ -277,9 +333,14 @@ export function Cadastro({ escritura, onSaveSuccess }) {
               type="text"
               value={formData.cpfCnpjOutorgado}
               onChange={(e) => handleChange('cpfCnpjOutorgado', formatCpfCnpj(e.target.value))}
+              onBlur={() => lookupCompany('outorgado')}
               placeholder="000.000.000-00 ou 00.000.000/0000-00"
               error={errors.cpfCnpjOutorgado}
               inputMode="numeric"
+              disabled={consultingCnpj.outorgado}
+              title="Ao informar um CNPJ completo, a razão social será consultada automaticamente"
+              hint={consultingCnpj.outorgado ? 'Consultando dados do CNPJ...' : 'CPF e CNPJ recebem pontuação automática.'}
+              maxLength={18}
             />
 
             <Input
