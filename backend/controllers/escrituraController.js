@@ -201,7 +201,9 @@ async function getChecklist(req, res) {
     try {
         const escritura = Escritura.findByIdOrUuid(req.params.id);
         if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
-        require('../migrate_operacao_diaria').ensureDefaultChecklist(escritura.id, req.user.id);
+        if (escritura.status !== 'Concluído') {
+            require('../migrate_operacao_diaria').ensureDefaultChecklist(escritura.id, req.user.id);
+        }
         res.json(Escritura.getChecklist(escritura.id));
     } catch (error) {
         res.status(500).json({ error: 'Erro ao carregar checklist' });

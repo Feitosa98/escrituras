@@ -270,7 +270,9 @@ class Escritura {
         // Atualizar o protocolo agora que temos o ID
         db.prepare(`UPDATE escrituras SET protocolo = ? WHERE id = ?`).run(protocolo, newId);
 
-        require('../migrate_operacao_diaria').ensureDefaultChecklist(newId, userId);
+        if ((data.status || 'Abertura de protocolo') !== 'Concluído') {
+            require('../migrate_operacao_diaria').ensureDefaultChecklist(newId, userId);
+        }
 
         return this.findById(newId);
     }
