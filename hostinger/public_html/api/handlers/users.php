@@ -45,7 +45,8 @@ function handle_users(string $method, array $parts): never
         $generated = normalize_username(($partsName[0] ?? '') . '.' . ($partsName[count($partsName) - 1] ?? 'usuario'));
         $username = normalize_username((string)($data['username'] ?? $generated));
         if (!preg_match('/^[a-z0-9]+\.[a-z0-9]+$/', $username)) fail('O usuario deve seguir o formato nome.sobrenome');
-        $email = strtolower(trim((string)($data['email'] ?? "$username@sistema.local")));
+        $emailInput = strtolower(trim((string)($data['email'] ?? '')));
+        $email = $emailInput !== '' ? $emailInput : "$username@sistema.local";
         $role = (string)($data['role'] ?? 'visualizador');
         if (!in_array($role, ['admin', 'editor', 'visualizador'], true)) fail('Nivel de acesso invalido');
         $start = (string)($data['access_start'] ?? '07:50');
@@ -54,7 +55,7 @@ function handle_users(string $method, array $parts): never
         if ($error = password_error($password, ['username' => $username, 'email' => $email])) fail($error);
         $check = db()->prepare('SELECT id FROM users WHERE username=? OR email=?');
         $check->execute([$username, $email]);
-        if ($check->fetch()) fail('Nome de usuario ou e-mail ja cadastrado');
+        if ($check->fetch()) fail('Nome de usuario ja cadastrado');
         $stmt = db()->prepare('INSERT INTO users (uuid,nome,username,email,senha_hash,role,access_start,access_end) VALUES (?,?,?,?,?,?,?,?)');
         $stmt->execute([uuid_v4(), $name, $username, $email, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]), $role, $start, $end]);
         $user = find_user((int)db()->lastInsertId());
