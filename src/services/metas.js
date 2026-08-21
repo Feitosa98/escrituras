@@ -7,33 +7,33 @@ export const metasAPI = {
     return response.data;
   },
 
-  // Buscar meta mensal
-  getMeta: async (mes, ano) => {
-    const response = await api.get(`/metas/${mes}/${ano}`);
+  // Buscar meta trimestral
+  getMeta: async (trimestre, ano) => {
+    const response = await api.get(`/metas/${trimestre}/${ano}`);
     return response.data;
   },
 
   // Relatório Individual
-  getRelatorioIndividual: async (userId, mes, ano) => {
-    const response = await api.get(`/metas/relatorio/individual/${userId}/${mes}/${ano}`);
+  getRelatorioIndividual: async (userId, trimestre, ano) => {
+    const response = await api.get(`/metas/relatorio/individual/${userId}/${trimestre}/${ano}`);
     return response.data;
   },
 
   // Relatório Equipe
-  getRelatorioEquipe: async (mes, ano) => {
-    const response = await api.get(`/metas/relatorio/equipe/${mes}/${ano}`);
+  getRelatorioEquipe: async (trimestre, ano) => {
+    const response = await api.get(`/metas/relatorio/equipe/${trimestre}/${ano}`);
     return response.data;
   },
 
   // Ranking
-  getRanking: async (mes, ano) => {
-    const response = await api.get(`/metas/ranking/${mes}/${ano}`);
+  getRanking: async (trimestre, ano) => {
+    const response = await api.get(`/metas/ranking/${trimestre}/${ano}`);
     return response.data;
   },
 
   // Projeção
-  getProjecao: async (mes, ano) => {
-    const response = await api.get(`/metas/projecao/${mes}/${ano}`);
+  getProjecao: async (trimestre, ano) => {
+    const response = await api.get(`/metas/projecao/${trimestre}/${ano}`);
     return response.data;
   },
 };

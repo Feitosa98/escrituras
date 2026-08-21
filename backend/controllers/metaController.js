@@ -1,15 +1,15 @@
 const Meta = require('../models/Meta');
 
-// Definir meta mensal
+// Definir meta trimestral
 async function setMeta(req, res) {
     try {
-        const { mes, ano, metaTotal, metasIndividuais } = req.body;
+        const { trimestre, ano, metaTotal, metasIndividuais } = req.body;
 
-        if (!mes || !ano || !metaTotal) {
-            return res.status(400).json({ error: 'Mês, ano e meta total são obrigatórios' });
+        if (!trimestre || !ano || !metaTotal) {
+            return res.status(400).json({ error: 'Trimestre, ano e meta total são obrigatórios' });
         }
 
-        const meta = Meta.setMetaMensal(mes, ano, metaTotal, metasIndividuais);
+        const meta = Meta.setMetaMensal(trimestre, ano, metaTotal, metasIndividuais);
         res.json(meta);
     } catch (error) {
         console.error('Erro ao definir meta:', error);
@@ -17,11 +17,11 @@ async function setMeta(req, res) {
     }
 }
 
-// Buscar meta mensal
+// Buscar meta trimestral
 async function getMeta(req, res) {
     try {
-        const { mes, ano } = req.params;
-        const meta = Meta.getMetaMensal(mes, ano);
+        const { mes: trimestre, ano } = req.params;
+        const meta = Meta.getMetaMensal(trimestre, ano);
 
         if (!meta) {
             return res.status(404).json({ error: 'Meta não encontrada' });
@@ -37,8 +37,8 @@ async function getMeta(req, res) {
 // Relatório de produção individual
 async function getRelatorioIndividual(req, res) {
     try {
-        const { userId, mes, ano } = req.params;
-        const relatorio = Meta.getProducaoIndividual(parseInt(userId), mes, ano);
+        const { userId, mes: trimestre, ano } = req.params;
+        const relatorio = Meta.getProducaoIndividual(parseInt(userId), trimestre, ano);
         res.json(relatorio);
     } catch (error) {
         console.error('Erro ao gerar relatório individual:', error);
@@ -49,8 +49,8 @@ async function getRelatorioIndividual(req, res) {
 // Relatório de produção da equipe
 async function getRelatorioEquipe(req, res) {
     try {
-        const { mes, ano } = req.params;
-        const relatorio = Meta.getProducaoEquipe(mes, ano);
+        const { mes: trimestre, ano } = req.params;
+        const relatorio = Meta.getProducaoEquipe(trimestre, ano);
         res.json(relatorio);
     } catch (error) {
         console.error('Erro ao gerar relatório de equipe:', error);
@@ -61,8 +61,8 @@ async function getRelatorioEquipe(req, res) {
 // Ranking de produtividade
 async function getRanking(req, res) {
     try {
-        const { mes, ano } = req.params;
-        const ranking = Meta.getRanking(mes, ano);
+        const { mes: trimestre, ano } = req.params;
+        const ranking = Meta.getRanking(trimestre, ano);
         res.json(ranking);
     } catch (error) {
         console.error('Erro ao buscar ranking:', error);
@@ -70,11 +70,11 @@ async function getRanking(req, res) {
     }
 }
 
-// Projeção de fim de mês
+// Projeção de fim do trimestre
 async function getProjecao(req, res) {
     try {
-        const { mes, ano } = req.params;
-        const projecao = Meta.getProjecao(mes, ano);
+        const { mes: trimestre, ano } = req.params;
+        const projecao = Meta.getProjecao(trimestre, ano);
         res.json(projecao);
     } catch (error) {
         console.error('Erro ao calcular projeção:', error);
