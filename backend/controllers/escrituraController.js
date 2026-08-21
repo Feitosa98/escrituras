@@ -532,6 +532,19 @@ async function getHistorico(req, res) {
     }
 }
 
+async function getNextProtocol(req, res) {
+    try {
+        const db = require('../database');
+        const year = String(req.query.ano || new Date().getFullYear()).replace(/\D/g, '');
+        if (year.length !== 4) return res.status(400).json({ error: 'Ano inválido' });
+        const row = db.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM escrituras').get();
+        res.json({ protocolo: `PROT-${year}-${String(row.next_id || 1).padStart(5, '0')}` });
+    } catch (error) {
+        console.error('Erro ao gerar prévia do protocolo:', error);
+        res.status(500).json({ error: 'Erro ao gerar protocolo' });
+    }
+}
+
 module.exports = {
     create,
     getAll,
@@ -552,4 +565,5 @@ module.exports = {
     removeChecklistItem,
     meuTrabalho,
     notificacoes,
+    getNextProtocol,
 };

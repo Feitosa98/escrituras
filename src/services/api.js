@@ -100,6 +100,10 @@ export const usersAPI = {
 
 // ========== ESCRITURAS ==========
 export const escriturasAPI = {
+  getNextProtocol: async (ano) => {
+    const response = await api.get('/escrituras/proximo-protocolo', { params: { ano } });
+    return response.data;
+  },
   getAll: async (filters = {}) => {
     const response = await api.get('/escrituras', { params: filters });
     return response.data;
@@ -176,6 +180,15 @@ export const escriturasAPI = {
 
   getStats: async () => {
     const response = await api.get('/escrituras/stats');
+    return response.data;
+  },
+};
+
+// ========== CONSULTA DE CNPJ ==========
+export const cnpjAPI = {
+  lookup: async (cnpj) => {
+    const digits = String(cnpj || '').replace(/\D/g, '');
+    const response = await api.get(`/cnpj/${digits}`);
     return response.data;
   },
 };

@@ -249,6 +249,13 @@ function handle_acts(string $method, array $parts): never
         json_response(['hoje' => $today, 'movimentos' => $moves, 'criadas' => $created, 'porStatus' => $byStatus, 'porUsuario' => $byUserStmt->fetchAll(), 'totais' => ['movimentos' => count($moves), 'criadas' => count($created)]]);
     }
     if ($method === 'GET' && $second === 'meu-trabalho') json_response(my_work($user));
+    if ($method === 'GET' && $second === 'proximo-protocolo') {
+        $year = preg_replace('/\D+/', '', (string)query('ano', date('Y'))) ?? '';
+        if (strlen($year) !== 4) fail('Ano invalido');
+        $stmt = db()->query("SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='escrituras'");
+        $nextId = max(1, (int)$stmt->fetchColumn());
+        json_response(['protocolo' => sprintf('PROT-%s-%05d', $year, $nextId)], 200, ['Cache-Control' => 'no-store']);
+    }
     if ($method === 'GET' && $second === 'notificacoes') {
         $work = my_work($user); $today = $work['hoje']; $items = [];
         foreach ($work['atos'] as $act) {

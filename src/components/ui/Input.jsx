@@ -4,6 +4,7 @@ import '../../styles/index.css';
 export function Input({
   label,
   error,
+  hint,
   type = 'text',
   placeholder,
   value,
@@ -34,6 +35,11 @@ export function Input({
       {error && (
         <span className="text-sm" style={{ color: 'var(--danger-500)' }}>
           {error}
+        </span>
+      )}
+      {!error && hint && (
+        <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+          {hint}
         </span>
       )}
     </div>

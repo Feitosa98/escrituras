@@ -12,6 +12,7 @@ router.get('/stats', requireVisualizador, escrituraController.getStats);
 router.get('/stats/atividade-hoje', requireVisualizador, escrituraController.atividadeHoje);
 router.get('/meu-trabalho', requireVisualizador, escrituraController.meuTrabalho);
 router.get('/notificacoes', requireVisualizador, escrituraController.notificacoes);
+router.get('/proximo-protocolo', requireVisualizador, escrituraController.getNextProtocol);
 router.post('/import', requireEditor, escrituraController.importBulk);
 
 // Rotas de leitura

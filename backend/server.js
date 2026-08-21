@@ -17,6 +17,7 @@ const signatureRoutes = require('./routes/signatures');
 const metaRoutes = require('./routes/metas');
 const consultaRoutes = require('./routes/consulta');
 const agendamentoRoutes = require('./routes/agendamentos');
+const cnpjRoutes = require('./routes/cnpj');
 
 // Inicializar banco de dados
 const database = require('./database');
@@ -151,6 +152,7 @@ function startServer() {
         app.use('/api/metas', metaRoutes);
         app.use('/api/consulta', consultaRoutes); // Rota pública - sem autenticação
         app.use('/api/agendamentos', agendamentoRoutes);
+        app.use('/api/cnpj', cnpjRoutes);
 
         if (process.env.NODE_ENV === 'development') {
             app.post('/api/client-log', (req, res) => {
