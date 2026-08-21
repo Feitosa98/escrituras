@@ -62,7 +62,7 @@ jobs:
       - name: Configure isolated test environment
         run: |
           cp hostinger/config.example.php hostinger/config.php
-          sed -i "s/u000000000_escrituras/escrituras_test/; s/u000000000_app/escrituras_app/; s/ALTERE_ESTA_SENHA/app_test_password/; s/ALTERE_POR_UM_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_jwt_secret_0123456789012345678901234567890123456789/; s/ALTERE_POR_OUTRO_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_encryption_secret_012345678901234567890123456789/" hostinger/config.php
+          sed -i "s/'host' => 'localhost'/'host' => '127.0.0.1'/; s/u000000000_escrituras/escrituras_test/; s/u000000000_app/escrituras_app/; s/ALTERE_ESTA_SENHA/app_test_password/; s/ALTERE_POR_UM_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_jwt_secret_0123456789012345678901234567890123456789/; s/ALTERE_POR_OUTRO_SEGREDO_ALEATORIO_DE_64_CARACTERES/test_encryption_secret_012345678901234567890123456789/" hostinger/config.php
       - name: Run API smoke tests
         run: |
           HASH=$(php -r 'echo password_hash("Senha-De-Teste-2026!", PASSWORD_BCRYPT);')
