@@ -15,9 +15,12 @@ export async function exportarParaExcel(escrituras = null) {
       'Data Selagem': e.selagem,
       Livro: e.livro,
       Folha: e.folha,
+      Protocolo: e.protocolo,
       'Tipo Livro': e.tipoLivro || e.tipo_livro,
       Outorgante: e.outorgante,
+      'CPF/CNPJ Outorgante': e.cpf_cnpj_outorgante,
       Outorgado: e.outorgado,
+      'CPF/CNPJ Outorgado': e.cpf_cnpj_outorgado,
       Escrevente: e.escrevente,
       Mês: e.mes,
       Ano: e.ano,
@@ -29,11 +32,11 @@ export async function exportarParaExcel(escrituras = null) {
     workbook.creator = 'Cartório Santiago';
     const worksheet = workbook.addWorksheet('Escrituras');
     const headers = Object.keys(dataForExcel[0] || {
-      'Tipo de Escritura': '', 'Data Selagem': '', Livro: '', Folha: '',
-      'Tipo Livro': '', Outorgante: '', Outorgado: '', Escrevente: '',
+      'Tipo de Escritura': '', 'Data Selagem': '', Livro: '', Folha: '', Protocolo: '',
+      'Tipo Livro': '', Outorgante: '', 'CPF/CNPJ Outorgante': '', Outorgado: '', 'CPF/CNPJ Outorgado': '', Escrevente: '',
       Mês: '', Ano: '', Observação: '', 'Data Cadastro': ''
     });
-    const widths = [20, 15, 10, 15, 15, 30, 30, 15, 10, 10, 40, 15];
+    const widths = [20, 15, 10, 15, 20, 15, 30, 20, 30, 20, 15, 10, 10, 40, 15];
     worksheet.columns = headers.map((header, index) => ({
       header,
       key: header,

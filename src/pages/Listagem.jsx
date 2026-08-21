@@ -22,6 +22,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { escriturasAPI } from '../services/api';
 import { exportarParaExcel } from '../services/export';
 import { formatDateBR } from '../utils/date';
+import { formatCpfCnpj, normalizeCpfCnpj } from '../utils/document';
 import '../styles/index.css';
 
 const ITEMS_POR_PAGINA = 20;
@@ -96,11 +97,15 @@ export function Listagem({ onEdit, onView }) {
     // Filtros
     if (textoBuscaDebounced) {
       const textoLower = textoBuscaDebounced.toLowerCase();
+      const documentoBusca = normalizeCpfCnpj(textoBuscaDebounced);
       resultado = resultado.filter(
         (e) =>
           e.tipo?.toLowerCase().includes(textoLower) ||
+          e.protocolo?.toLowerCase().includes(textoLower) ||
           e.outorgante?.toLowerCase().includes(textoLower) ||
           e.outorgado?.toLowerCase().includes(textoLower) ||
+          (documentoBusca && normalizeCpfCnpj(e.cpf_cnpj_outorgante).includes(documentoBusca)) ||
+          (documentoBusca && normalizeCpfCnpj(e.cpf_cnpj_outorgado).includes(documentoBusca)) ||
           e.livro?.toString().includes(textoLower) ||
           e.folha?.toLowerCase().includes(textoLower)
       );
@@ -251,7 +256,7 @@ export function Listagem({ onEdit, onView }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.875rem', marginBottom: '0.875rem' }}>
           <Input
             label="Busca Geral"
-            placeholder="Tipo, outorgante, livro..."
+            placeholder="Protocolo, CPF/CNPJ, parte, livro..."
             value={filtros.texto}
             onChange={(e) => setFiltros({ ...filtros, texto: e.target.value })}
           />
@@ -297,6 +302,7 @@ export function Listagem({ onEdit, onView }) {
           <table>
             <thead>
               <tr>
+                <TableHeader label="Protocolo" campo="protocolo" />
                 <TableHeader label="Tipo" campo="tipo" />
                 <TableHeader label="Selagem" campo="selagem" />
                 <TableHeader label="Livro" campo="livro" />
@@ -312,21 +318,28 @@ export function Listagem({ onEdit, onView }) {
             <tbody>
               {escriturasPaginadas.length === 0 ? (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
+                  <td colSpan="11" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
                     {escrituras.length === 0 ? 'Nenhuma escritura cadastrada.' : 'Nenhum resultado para os filtros aplicados.'}
                   </td>
                 </tr>
               ) : (
                 escriturasPaginadas.map((escritura) => (
                   <tr key={escritura.uuid || escritura.id}>
+                    <td style={{ fontFamily: 'monospace', fontWeight: 700, whiteSpace: 'nowrap' }}>{escritura.protocolo || '—'}</td>
                     <td><Badge variant="primary">{escritura.tipo}</Badge></td>
                     <td style={{ color: 'var(--text-secondary)' }}>
                       {formatDateBR(escritura.selagem)}
                     </td>
                     <td style={{ fontWeight: 600 }}>{escritura.livro}</td>
                     <td style={{ fontWeight: 600 }}>{escritura.folha}</td>
-                    <td>{escritura.outorgante}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{escritura.outorgado || '—'}</td>
+                    <td>
+                      <div>{escritura.outorgante}</div>
+                      {escritura.cpf_cnpj_outorgante && <small style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{formatCpfCnpj(escritura.cpf_cnpj_outorgante)}</small>}
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>
+                      <div>{escritura.outorgado || '—'}</div>
+                      {escritura.cpf_cnpj_outorgado && <small style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{formatCpfCnpj(escritura.cpf_cnpj_outorgado)}</small>}
+                    </td>
                     <td style={{ color: 'var(--text-secondary)' }}>{escritura.escrevente}</td>
                     <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{escritura.mes}/{escritura.ano}</td>
                     <td>

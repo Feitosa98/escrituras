@@ -47,7 +47,9 @@ db.exec(`
     livro TEXT NOT NULL,
     folha TEXT NOT NULL,
     outorgante TEXT NOT NULL,
+    cpf_cnpj_outorgante TEXT,
     outorgado TEXT,
+    cpf_cnpj_outorgado TEXT,
     email_cliente TEXT,
     escrevente TEXT NOT NULL,
     tipo_livro TEXT NOT NULL,
@@ -127,6 +129,13 @@ const hasUserColumn = (name) => userColumns.some((column) => column.name === nam
 if (!hasUserColumn('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
 if (!hasUserColumn('access_start')) db.exec("ALTER TABLE users ADD COLUMN access_start TEXT NOT NULL DEFAULT '07:50'");
 if (!hasUserColumn('access_end')) db.exec("ALTER TABLE users ADD COLUMN access_end TEXT NOT NULL DEFAULT '18:30'");
+
+const escrituraColumns = db.prepare('PRAGMA table_info(escrituras)').all();
+const hasEscrituraColumn = (name) => escrituraColumns.some((column) => column.name === name);
+if (!hasEscrituraColumn('cpf_cnpj_outorgante')) db.exec('ALTER TABLE escrituras ADD COLUMN cpf_cnpj_outorgante TEXT');
+if (!hasEscrituraColumn('cpf_cnpj_outorgado')) db.exec('ALTER TABLE escrituras ADD COLUMN cpf_cnpj_outorgado TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_escrituras_cpf_outorgante ON escrituras(cpf_cnpj_outorgante)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_escrituras_cpf_outorgado ON escrituras(cpf_cnpj_outorgado)');
 
 // Criar usuário admin padrão se não existir
 const adminEmail = process.env.ADMIN_EMAIL || 'admin@sistema.local';

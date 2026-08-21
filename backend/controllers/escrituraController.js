@@ -78,6 +78,7 @@ async function getCredentials(req, res) {
 async function create(req, res) {
     try {
         const { livro, folha } = req.body;
+        const protocolo = String(req.body.protocolo || '').trim();
         const emailCliente = String(req.body.emailCliente || req.body.email_cliente || '').trim();
         const tipoAcompanhamento = String(req.body.tipoAcompanhamento || req.body.tipo_acompanhamento || '').toUpperCase();
         const geraAcompanhamento = tipoAcompanhamento === 'PP'
@@ -101,6 +102,9 @@ async function create(req, res) {
                 error: 'Já existe uma escritura com este Livro e Folha',
                 escritura: existente
             });
+        }
+        if (protocolo && Escritura.findByProtocolo(protocolo)) {
+            return res.status(400).json({ error: 'Já existe uma escritura com este protocolo' });
         }
 
         const escritura = Escritura.create(req.body, req.user.id);
@@ -143,6 +147,11 @@ async function update(req, res) {
                 error: 'Já existe uma escritura com este Livro e Folha',
                 escritura: existente
             });
+        }
+        const protocolo = String(req.body.protocolo || escrituraAntiga.protocolo || '').trim();
+        const protocoloExistente = protocolo ? Escritura.findByProtocolo(protocolo) : null;
+        if (protocoloExistente && protocoloExistente.id !== escrituraAntiga.id) {
+            return res.status(400).json({ error: 'Já existe uma escritura com este protocolo' });
         }
 
         const escritura = Escritura.update(escrituraAntiga.id, req.body, req.user.id);

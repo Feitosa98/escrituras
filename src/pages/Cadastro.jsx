@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/Toast';
 import { escriturasAPI } from '../services/api';
+import { formatCpfCnpj, isValidCpfCnpjLength, normalizeCpfCnpj } from '../utils/document';
 import '../styles/index.css';
 
 const TIPOS_ESCRITURA = [
@@ -50,8 +51,11 @@ export function Cadastro({ escritura, onSaveSuccess }) {
     selagem: '',
     livro: '',
     folha: '',
+    protocolo: '',
     outorgante: '',
+    cpfCnpjOutorgante: '',
     outorgado: '',
+    cpfCnpjOutorgado: '',
     emailCliente: '',
     escrevente: '',
     tipoLivro: '',
@@ -71,8 +75,11 @@ export function Cadastro({ escritura, onSaveSuccess }) {
         selagem: escritura.selagem || '',
         livro: escritura.livro || '',
         folha: escritura.folha || '',
+        protocolo: escritura.protocolo || '',
         outorgante: escritura.outorgante || '',
+        cpfCnpjOutorgante: formatCpfCnpj(escritura.cpf_cnpj_outorgante || escritura.cpfCnpjOutorgante),
         outorgado: escritura.outorgado || '',
+        cpfCnpjOutorgado: formatCpfCnpj(escritura.cpf_cnpj_outorgado || escritura.cpfCnpjOutorgado),
         emailCliente: escritura.email_cliente || '',
         escrevente: escritura.escrevente || '',
         tipoLivro: escritura.tipoLivro || escritura.tipo_livro || '',
@@ -105,16 +112,29 @@ export function Cadastro({ escritura, onSaveSuccess }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const validationErrors = {};
+    if (!isValidCpfCnpjLength(formData.cpfCnpjOutorgante)) validationErrors.cpfCnpjOutorgante = 'Informe um CPF com 11 dígitos ou CNPJ com 14 dígitos';
+    if (!isValidCpfCnpjLength(formData.cpfCnpjOutorgado)) validationErrors.cpfCnpjOutorgado = 'Informe um CPF com 11 dígitos ou CNPJ com 14 dígitos';
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
+      const payload = {
+        ...formData,
+        protocolo: formData.protocolo.trim(),
+        cpfCnpjOutorgante: normalizeCpfCnpj(formData.cpfCnpjOutorgante),
+        cpfCnpjOutorgado: normalizeCpfCnpj(formData.cpfCnpjOutorgado),
+      };
       if (escritura) {
         // Editar
-        await escriturasAPI.update(escritura.uuid || escritura.id, formData);
+        await escriturasAPI.update(escritura.uuid || escritura.id, payload);
         toast.success('Escritura atualizada com sucesso!');
       } else {
         // Criar
-        await escriturasAPI.create(formData);
+        await escriturasAPI.create(payload);
         toast.success('Escritura cadastrada com sucesso!');
       }
 
@@ -212,6 +232,15 @@ export function Cadastro({ escritura, onSaveSuccess }) {
               required
             />
 
+            <Input
+              label="Protocolo"
+              type="text"
+              value={formData.protocolo}
+              onChange={(e) => handleChange('protocolo', e.target.value)}
+              placeholder="Em branco para gerar automaticamente"
+              error={errors.protocolo}
+            />
+
             {/* Outorgante */}
             <Input
               label="Outorgante"
@@ -223,6 +252,16 @@ export function Cadastro({ escritura, onSaveSuccess }) {
               required
             />
 
+            <Input
+              label="CPF/CNPJ do Outorgante"
+              type="text"
+              value={formData.cpfCnpjOutorgante}
+              onChange={(e) => handleChange('cpfCnpjOutorgante', formatCpfCnpj(e.target.value))}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              error={errors.cpfCnpjOutorgante}
+              inputMode="numeric"
+            />
+
             {/* Outorgado */}
             <Input
               label="Outorgado"
@@ -231,6 +270,16 @@ export function Cadastro({ escritura, onSaveSuccess }) {
               onChange={(e) => handleChange('outorgado', e.target.value)}
               placeholder="Nome do outorgado"
               error={errors.outorgado}
+            />
+
+            <Input
+              label="CPF/CNPJ do Outorgado"
+              type="text"
+              value={formData.cpfCnpjOutorgado}
+              onChange={(e) => handleChange('cpfCnpjOutorgado', formatCpfCnpj(e.target.value))}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              error={errors.cpfCnpjOutorgado}
+              inputMode="numeric"
             />
 
             <Input

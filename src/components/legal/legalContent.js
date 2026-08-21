@@ -94,7 +94,7 @@ export const LEGAL_DOCUMENTS = {
         title: '2. Dados tratados',
         items: [
           'Dados de usuários internos: nome, usuário, e-mail, nível de acesso, situação da conta e horário autorizado.',
-          'Dados dos atos: nomes das partes, e-mail do requerente, tipo do ato, livro, folha, protocolo, datas, observações e andamento.',
+          'Dados dos atos: nomes e CPF/CNPJ das partes, e-mail do requerente, tipo do ato, livro, folha, protocolo, datas, observações e andamento.',
           'Credenciais de acompanhamento: código e senha vinculados ao ato, quando a funcionalidade for habilitada.',
           'Dados de segurança e auditoria: endereço IP, data, horário, ações realizadas, alterações, responsáveis e assinaturas.',
           'Dados técnicos necessários à sessão, preferências de interface e funcionamento do Sistema.',

@@ -7,6 +7,7 @@ import { AgendamentoModal } from '../components/agendamentos/AgendamentoModal';
 import { useToast } from '../components/ui/Toast';
 import { escriturasAPI, usersAPI } from '../services/api';
 import { formatDateBR } from '../utils/date';
+import { formatCpfCnpj } from '../utils/document';
 
 const STATUS_CONFIG = {
   'Abertura de protocolo': { color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe', icon: Clock },
@@ -640,10 +641,16 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
             <div>
               <label className="label">Outorgante</label>
               <p style={{ color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.4 }}>{escritura.outorgante}</p>
+              <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', fontSize: '.8rem', marginTop: '.2rem' }}>
+                {escritura.cpf_cnpj_outorgante ? formatCpfCnpj(escritura.cpf_cnpj_outorgante) : 'CPF/CNPJ não informado'}
+              </p>
             </div>
             <div>
               <label className="label">Outorgado</label>
               <p style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{escritura.outorgado || '—'}</p>
+              <p style={{ color: 'var(--text-tertiary)', fontFamily: 'monospace', fontSize: '.8rem', marginTop: '.2rem' }}>
+                {escritura.cpf_cnpj_outorgado ? formatCpfCnpj(escritura.cpf_cnpj_outorgado) : 'CPF/CNPJ não informado'}
+              </p>
             </div>
             <div>
               <label className="label">Escrevente Responsável</label>

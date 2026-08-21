@@ -329,7 +329,8 @@ export function Kanban() {
   const filtradas = escrituras.filter(e => {
     const s = e.status || 'Em andamento';
     const q = search.toLowerCase();
-    const matchSearch = !q || [e.tipo, e.outorgante, e.outorgado, e.escrevente, e.livro, e.folha, e.protocolo].some(v => String(v || '').toLowerCase().includes(q));
+    const digits = search.replace(/\D/g, '');
+    const matchSearch = !q || [e.tipo, e.outorgante, e.outorgado, e.escrevente, e.livro, e.folha, e.protocolo].some(v => String(v || '').toLowerCase().includes(q)) || (digits && [e.cpf_cnpj_outorgante, e.cpf_cnpj_outorgado].some(v => String(v || '').includes(digits)));
     const matchStatus = !filtroStatus || s === filtroStatus;
     return matchSearch && matchStatus;
   });
@@ -413,7 +414,7 @@ export function Kanban() {
         <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', pointerEvents: 'none' }} />
         <input
           type="text"
-          placeholder="Buscar por tipo, outorgante, livro..."
+          placeholder="Buscar por protocolo, CPF/CNPJ, parte, livro..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{

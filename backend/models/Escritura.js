@@ -9,8 +9,11 @@ class Escritura {
             selagem: data.selagem,
             livro: data.livro,
             folha: data.folha,
+            protocolo: data.protocolo,
             outorgante: data.outorgante,
+            cpf_cnpj_outorgante: data.cpf_cnpj_outorgante || data.cpfCnpjOutorgante,
             outorgado: data.outorgado,
+            cpf_cnpj_outorgado: data.cpf_cnpj_outorgado || data.cpfCnpjOutorgado,
             email_cliente: data.email_cliente || data.emailCliente,
             escrevente: data.escrevente,
             tipo_livro: data.tipo_livro || data.tipoLivro,
@@ -58,6 +61,13 @@ class Escritura {
     static generateProtocolo(id, ano) {
         const numPadded = String(id).padStart(5, '0');
         return `PROT-${ano}-${numPadded}`;
+    }
+
+    static normalizePartyDocument(value, label) {
+        const digits = String(value || '').replace(/\D/g, '');
+        if (!digits) return null;
+        if (![11, 14].includes(digits.length)) throw new Error(`${label} deve possuir 11 dígitos para CPF ou 14 para CNPJ`);
+        return digits;
     }
 
     static getTrackingPrefix(data) {
@@ -144,9 +154,15 @@ class Escritura {
             params.push(filters.dataFim);
         }
         if (filters.busca) {
-            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?)';
+            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?';
             const searchTerm = `%${filters.busca}%`;
             params.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+            const documentDigits = String(filters.busca).replace(/\D/g, '');
+            if (documentDigits) {
+                query += ' OR e.cpf_cnpj_outorgante LIKE ? OR e.cpf_cnpj_outorgado LIKE ?';
+                params.push(`%${documentDigits}%`, `%${documentDigits}%`);
+            }
+            query += ')';
         }
 
         query += ' ORDER BY e.created_at DESC';
@@ -170,9 +186,15 @@ class Escritura {
         if (filters.dataInicio) { query += ' AND e.selagem >= ?'; params.push(filters.dataInicio); }
         if (filters.dataFim) { query += ' AND e.selagem <= ?'; params.push(filters.dataFim); }
         if (filters.busca) {
-            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?)';
+            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?';
             const term = `%${filters.busca}%`;
             params.push(term, term, term, term, term, term);
+            const documentDigits = String(filters.busca).replace(/\D/g, '');
+            if (documentDigits) {
+                query += ' OR e.cpf_cnpj_outorgante LIKE ? OR e.cpf_cnpj_outorgado LIKE ?';
+                params.push(`%${documentDigits}%`, `%${documentDigits}%`);
+            }
+            query += ')';
         }
         return Number(db.prepare(query).get(...params).total || 0);
     }
@@ -232,9 +254,17 @@ class Escritura {
         return db.prepare('SELECT * FROM escrituras WHERE livro = ? AND folha = ?').get(livro, folha);
     }
 
+    static findByProtocolo(protocolo) {
+        return db.prepare('SELECT * FROM escrituras WHERE protocolo = ?').get(protocolo);
+    }
+
     static create(data, userId) {
         const uuid = crypto.randomUUID();
         const integrityHash = this.calculateIntegrityHash(data);
+        const cpfCnpjOutorgante = this.normalizePartyDocument(data.cpfCnpjOutorgante || data.cpf_cnpj_outorgante, 'CPF/CNPJ do outorgante');
+        const cpfCnpjOutorgado = this.normalizePartyDocument(data.cpfCnpjOutorgado || data.cpf_cnpj_outorgado, 'CPF/CNPJ do outorgado');
+        const requestedProtocol = String(data.protocolo || '').trim();
+        if (requestedProtocol.length > 40) throw new Error('O protocolo deve possuir no máximo 40 caracteres');
         const senhaCliente = this.generateSenha();
         const ano = data.ano || new Date().getFullYear();
         const trackingPrefix = this.getTrackingPrefix(data);
@@ -252,11 +282,11 @@ class Escritura {
 
         const stmt = db.prepare(`
       INSERT INTO escrituras (
-        uuid, tipo, selagem, livro, folha, outorgante, outorgado, email_cliente,
+        uuid, tipo, selagem, livro, folha, outorgante, cpf_cnpj_outorgante, outorgado, cpf_cnpj_outorgado, email_cliente,
         escrevente, tipo_livro, mes, ano, observacao, created_by, integrity_hash,
         status, prazo_dias, valor_receita, senha_cliente, acompanhamento_codigo,
         tipo_acompanhamento, gera_acompanhamento, protocolo_data, responsavel_id, prazo_data
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
         const result = stmt.run(
@@ -266,7 +296,9 @@ class Escritura {
             data.livro,
             data.folha,
             data.outorgante,
+            cpfCnpjOutorgante,
             data.outorgado || null,
+            cpfCnpjOutorgado,
             data.emailCliente || data.email_cliente || null,
             data.escrevente,
             data.tipoLivro,
@@ -288,7 +320,7 @@ class Escritura {
         );
 
         const newId = result.lastInsertRowid;
-        const protocolo = this.generateProtocolo(newId, ano);
+        const protocolo = requestedProtocol || this.generateProtocolo(newId, ano);
 
         // Atualizar o protocolo agora que temos o ID
         db.prepare(`UPDATE escrituras SET protocolo = ? WHERE id = ?`).run(protocolo, newId);
@@ -304,11 +336,15 @@ class Escritura {
         const current = this.findById(id);
         if (!current) return null;
         const integrityHash = this.calculateIntegrityHash(data);
+        const cpfCnpjOutorgante = this.normalizePartyDocument(data.cpfCnpjOutorgante ?? data.cpf_cnpj_outorgante ?? current.cpf_cnpj_outorgante, 'CPF/CNPJ do outorgante');
+        const cpfCnpjOutorgado = this.normalizePartyDocument(data.cpfCnpjOutorgado ?? data.cpf_cnpj_outorgado ?? current.cpf_cnpj_outorgado, 'CPF/CNPJ do outorgado');
+        const protocolo = String(data.protocolo || current.protocolo || '').trim();
+        if (protocolo.length > 40) throw new Error('O protocolo deve possuir no máximo 40 caracteres');
 
         const stmt = db.prepare(`
       UPDATE escrituras SET
-        tipo = ?, selagem = ?, livro = ?, folha = ?, outorgante = ?,
-        outorgado = ?, email_cliente = ?, escrevente = ?, tipo_livro = ?, mes = ?, ano = ?,
+        tipo = ?, selagem = ?, livro = ?, folha = ?, protocolo = ?, outorgante = ?, cpf_cnpj_outorgante = ?,
+        outorgado = ?, cpf_cnpj_outorgado = ?, email_cliente = ?, escrevente = ?, tipo_livro = ?, mes = ?, ano = ?,
         observacao = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP, integrity_hash = ?,
         status = ?, prazo_dias = ?, valor_receita = ?
       WHERE id = ?
@@ -319,8 +355,11 @@ class Escritura {
             data.selagem || null,
             data.livro,
             data.folha,
+            protocolo,
             data.outorgante,
+            cpfCnpjOutorgante,
             data.outorgado || null,
+            cpfCnpjOutorgado,
             data.emailCliente || data.email_cliente || current.email_cliente || null,
             data.escrevente,
             data.tipoLivro,

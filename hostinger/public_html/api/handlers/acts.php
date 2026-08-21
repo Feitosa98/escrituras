@@ -31,11 +31,19 @@ function generate_tracking_password(): string
 
 function act_integrity_hash(array $data): string
 {
-    $keys = ['tipo', 'selagem', 'livro', 'folha', 'outorgante', 'outorgado', 'escrevente', 'tipoLivro', 'tipo_livro', 'mes', 'ano'];
+    $keys = ['tipo', 'selagem', 'livro', 'folha', 'protocolo', 'outorgante', 'cpfCnpjOutorgante', 'cpf_cnpj_outorgante', 'outorgado', 'cpfCnpjOutorgado', 'cpf_cnpj_outorgado', 'escrevente', 'tipoLivro', 'tipo_livro', 'mes', 'ano'];
     $values = [];
     foreach ($keys as $key) if (array_key_exists($key, $data)) $values[$key] = $data[$key];
     ksort($values);
     return hash('sha256', json_encode($values, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE));
+}
+
+function normalize_party_document(mixed $value, string $label): ?string
+{
+    $digits = preg_replace('/\D+/', '', trim((string)$value));
+    if ($digits === '') return null;
+    if (!in_array(strlen($digits), [11, 14], true)) fail("$label deve possuir 11 digitos para CPF ou 14 para CNPJ");
+    return $digits;
 }
 
 function act_filter_query(array $filters, bool $count = false): array
@@ -52,9 +60,16 @@ function act_filter_query(array $filters, bool $count = false): array
     if (($filters['dataInicio'] ?? '') !== '') { $sql .= ' AND e.selagem>=?'; $params[] = $filters['dataInicio']; }
     if (($filters['dataFim'] ?? '') !== '') { $sql .= ' AND e.selagem<=?'; $params[] = $filters['dataFim']; }
     if (($filters['busca'] ?? '') !== '') {
-        $sql .= ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?)';
+        $sql .= ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?';
         $term = '%' . $filters['busca'] . '%';
         array_push($params, $term, $term, $term, $term, $term, $term);
+        $documentDigits = preg_replace('/\D+/', '', $filters['busca']);
+        if ($documentDigits !== '') {
+            $sql .= ' OR e.cpf_cnpj_outorgante LIKE ? OR e.cpf_cnpj_outorgado LIKE ?';
+            $documentTerm = '%' . $documentDigits . '%';
+            array_push($params, $documentTerm, $documentTerm);
+        }
+        $sql .= ')';
     }
     if (!$count) {
         $sql .= ' ORDER BY e.created_at DESC';
@@ -96,6 +111,10 @@ function create_act(array $data, array $user): array
     $typeBook = trim((string)($data['tipoLivro'] ?? $data['tipo_livro'] ?? ''));
     if ($typeBook === '') fail('Campo obrigatorio: tipoLivro');
     $email = trim((string)($data['emailCliente'] ?? $data['email_cliente'] ?? ''));
+    $grantorDocument = normalize_party_document($data['cpfCnpjOutorgante'] ?? $data['cpf_cnpj_outorgante'] ?? '', 'CPF/CNPJ do outorgante');
+    $granteeDocument = normalize_party_document($data['cpfCnpjOutorgado'] ?? $data['cpf_cnpj_outorgado'] ?? '', 'CPF/CNPJ do outorgado');
+    $requestedProtocol = trim((string)($data['protocolo'] ?? ''));
+    if (strlen($requestedProtocol) > 40) fail('O protocolo deve possuir no maximo 40 caracteres');
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Informe um e-mail valido para o cliente');
     $prefix = tracking_prefix($data);
     $generate = $prefix === 'PP' ? bool_value($data['geraAcompanhamento'] ?? $data['gera_acompanhamento'] ?? false) : true;
@@ -103,15 +122,20 @@ function create_act(array $data, array $user): array
     $duplicate = db()->prepare('SELECT id FROM escrituras WHERE livro=? AND folha=?');
     $duplicate->execute([$data['livro'], $data['folha']]);
     if ($duplicate->fetch()) fail('Ja existe uma escritura com este Livro e Folha');
+    if ($requestedProtocol !== '') {
+        $protocolDuplicate = db()->prepare('SELECT id FROM escrituras WHERE protocolo=?');
+        $protocolDuplicate->execute([$requestedProtocol]);
+        if ($protocolDuplicate->fetch()) fail('Ja existe uma escritura com este protocolo');
+    }
 
-    return with_transaction(function (PDO $pdo) use ($data, $user, $typeBook, $email, $prefix, $generate): array {
+    return with_transaction(function (PDO $pdo) use ($data, $user, $typeBook, $email, $prefix, $generate, $grantorDocument, $granteeDocument, $requestedProtocol): array {
         $trackingPassword = $generate ? generate_tracking_password() : null;
         $trackingCode = $generate ? next_tracking_code($pdo, $prefix) : null;
         $status = trim((string)($data['status'] ?? 'Abertura de protocolo'));
-        $stmt = $pdo->prepare('INSERT INTO escrituras (uuid,tipo,selagem,livro,folha,outorgante,outorgado,email_cliente,escrevente,tipo_livro,mes,ano,observacao,senha_cliente,acompanhamento_codigo,tipo_acompanhamento,gera_acompanhamento,protocolo_data,status,prazo_dias,valor_receita,integrity_hash,created_by,responsavel_id,prazo_data) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURDATE(),?,?,?,?,?,?,?)');
+        $stmt = $pdo->prepare('INSERT INTO escrituras (uuid,tipo,selagem,livro,folha,outorgante,cpf_cnpj_outorgante,outorgado,cpf_cnpj_outorgado,email_cliente,escrevente,tipo_livro,mes,ano,observacao,senha_cliente,acompanhamento_codigo,tipo_acompanhamento,gera_acompanhamento,protocolo_data,status,prazo_dias,valor_receita,integrity_hash,created_by,responsavel_id,prazo_data) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURDATE(),?,?,?,?,?,?,?)');
         $stmt->execute([
             uuid_v4(), trim((string)$data['tipo']), $data['selagem'] ?: null, trim((string)$data['livro']), trim((string)$data['folha']),
-            trim((string)$data['outorgante']), trim((string)($data['outorgado'] ?? '')) ?: null, $email ?: null,
+            trim((string)$data['outorgante']), $grantorDocument, trim((string)($data['outorgado'] ?? '')) ?: null, $granteeDocument, $email ?: null,
             trim((string)$data['escrevente']), $typeBook, str_pad((string)$data['mes'], 2, '0', STR_PAD_LEFT), (string)$data['ano'],
             trim((string)($data['observacao'] ?? '')) ?: null, encrypt_secret($trackingPassword), $trackingCode, $prefix, $generate ? 1 : 0,
             $status, (int)($data['prazo_dias'] ?? 0), (float)($data['valor_receita'] ?? 0), act_integrity_hash($data),
@@ -119,7 +143,7 @@ function create_act(array $data, array $user): array
             ($data['prazoData'] ?? $data['prazo_data'] ?? null) ?: null,
         ]);
         $id = (int)$pdo->lastInsertId();
-        $protocol = sprintf('PROT-%s-%05d', $data['ano'], $id);
+        $protocol = $requestedProtocol !== '' ? $requestedProtocol : sprintf('PROT-%s-%05d', $data['ano'], $id);
         $pdo->prepare('UPDATE escrituras SET protocolo=? WHERE id=?')->execute([$protocol, $id]);
         if ($status !== 'Concluido' && $status !== 'Concluído') ensure_default_checklist($id, (int)$user['id']);
         $act = find_act($id, true);
@@ -133,19 +157,30 @@ function update_act(int $id, array $data, array $user): array
     $before = find_act($id);
     if (!$before) fail('Escritura nao encontrada', 404);
     $email = trim((string)($data['emailCliente'] ?? $data['email_cliente'] ?? $before['email_cliente'] ?? ''));
+    $grantorDocument = normalize_party_document($data['cpfCnpjOutorgante'] ?? $data['cpf_cnpj_outorgante'] ?? $before['cpf_cnpj_outorgante'] ?? '', 'CPF/CNPJ do outorgante');
+    $granteeDocument = normalize_party_document($data['cpfCnpjOutorgado'] ?? $data['cpf_cnpj_outorgado'] ?? $before['cpf_cnpj_outorgado'] ?? '', 'CPF/CNPJ do outorgado');
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) fail('Informe um e-mail valido para o cliente');
     $book = (string)($data['livro'] ?? $before['livro']);
     $sheet = (string)($data['folha'] ?? $before['folha']);
     $dup = db()->prepare('SELECT id FROM escrituras WHERE livro=? AND folha=? AND id<>?');
     $dup->execute([$book, $sheet, $id]);
     if ($dup->fetch()) fail('Ja existe uma escritura com este Livro e Folha');
+    $protocol = trim((string)($data['protocolo'] ?? $before['protocolo'] ?? ''));
+    if ($protocol === '') $protocol = (string)($before['protocolo'] ?? '');
+    if (strlen($protocol) > 40) fail('O protocolo deve possuir no maximo 40 caracteres');
+    if ($protocol !== '') {
+        $protocolDuplicate = db()->prepare('SELECT id FROM escrituras WHERE protocolo=? AND id<>?');
+        $protocolDuplicate->execute([$protocol, $id]);
+        if ($protocolDuplicate->fetch()) fail('Ja existe uma escritura com este protocolo');
+    }
+    if (array_key_exists('protocolo', $data)) $data['protocolo'] = $protocol;
     $map = [
         'tipo' => 'tipo', 'selagem' => 'selagem', 'livro' => 'livro', 'folha' => 'folha', 'outorgante' => 'outorgante',
-        'outorgado' => 'outorgado', 'escrevente' => 'escrevente', 'mes' => 'mes', 'ano' => 'ano', 'observacao' => 'observacao',
+        'outorgado' => 'outorgado', 'protocolo' => 'protocolo', 'escrevente' => 'escrevente', 'mes' => 'mes', 'ano' => 'ano', 'observacao' => 'observacao',
         'status' => 'status', 'prazo_dias' => 'prazo_dias', 'valor_receita' => 'valor_receita',
     ];
-    $sets = ['email_cliente=?', 'updated_by=?', 'integrity_hash=?'];
-    $values = [$email ?: null, $user['id'], act_integrity_hash(array_merge($before, $data))];
+    $sets = ['email_cliente=?', 'cpf_cnpj_outorgante=?', 'cpf_cnpj_outorgado=?', 'updated_by=?', 'integrity_hash=?'];
+    $values = [$email ?: null, $grantorDocument, $granteeDocument, $user['id'], act_integrity_hash(array_merge($before, $data))];
     if (array_key_exists('tipoLivro', $data) || array_key_exists('tipo_livro', $data)) {
         $sets[] = 'tipo_livro=?'; $values[] = $data['tipoLivro'] ?? $data['tipo_livro'];
     }

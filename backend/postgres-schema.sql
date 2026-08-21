@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS escrituras (
   id BIGSERIAL PRIMARY KEY, uuid TEXT UNIQUE, tipo TEXT NOT NULL, selagem DATE, livro TEXT NOT NULL, folha TEXT NOT NULL,
-  outorgante TEXT NOT NULL, outorgado TEXT, email_cliente TEXT, escrevente TEXT NOT NULL, tipo_livro TEXT NOT NULL,
+  outorgante TEXT NOT NULL, cpf_cnpj_outorgante TEXT, outorgado TEXT, cpf_cnpj_outorgado TEXT,
+  email_cliente TEXT, escrevente TEXT NOT NULL, tipo_livro TEXT NOT NULL,
   mes TEXT NOT NULL, ano TEXT NOT NULL, observacao TEXT, protocolo TEXT UNIQUE, senha_cliente TEXT,
   acompanhamento_codigo TEXT UNIQUE, tipo_acompanhamento TEXT, gera_acompanhamento INTEGER NOT NULL DEFAULT 1,
   protocolo_data DATE, status TEXT DEFAULT 'Abertura de protocolo', prazo_dias INTEGER DEFAULT 0,
@@ -16,6 +17,8 @@ CREATE TABLE IF NOT EXISTS escrituras (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(livro, folha)
 );
+ALTER TABLE escrituras ADD COLUMN IF NOT EXISTS cpf_cnpj_outorgante TEXT;
+ALTER TABLE escrituras ADD COLUMN IF NOT EXISTS cpf_cnpj_outorgado TEXT;
 CREATE TABLE IF NOT EXISTS audit_logs (id BIGSERIAL PRIMARY KEY, user_id BIGINT REFERENCES users(id), acao TEXT NOT NULL, tabela TEXT, registro_id BIGINT, dados_anteriores TEXT, dados_novos TEXT, ip_address TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS tipos_escritura (id BIGSERIAL PRIMARY KEY, nome TEXT UNIQUE NOT NULL, ativo INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS escreventes (id BIGSERIAL PRIMARY KEY, nome TEXT NOT NULL, user_id BIGINT REFERENCES users(id), ativo INTEGER DEFAULT 1);
@@ -33,4 +36,6 @@ CREATE INDEX IF NOT EXISTS idx_workflow_history_escritura ON workflow_history(es
 CREATE INDEX IF NOT EXISTS idx_escrituras_responsavel ON escrituras(responsavel_id);
 CREATE INDEX IF NOT EXISTS idx_escrituras_prazo ON escrituras(prazo_data);
 CREATE INDEX IF NOT EXISTS idx_escrituras_arquivada ON escrituras(archived_at);
+CREATE INDEX IF NOT EXISTS idx_escrituras_cpf_outorgante ON escrituras(cpf_cnpj_outorgante);
+CREATE INDEX IF NOT EXISTS idx_escrituras_cpf_outorgado ON escrituras(cpf_cnpj_outorgado);
 CREATE INDEX IF NOT EXISTS idx_checklist_escritura ON checklist_items(escritura_id, ordem);
