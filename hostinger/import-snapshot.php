@@ -45,7 +45,7 @@ try {
             $stmt->execute($values);
         }
     }
-    $pdo->exec("INSERT INTO tracking_sequences(prefix_month,last_value) SELECT LEFT(acompanhamento_codigo,LENGTH(acompanhamento_codigo)-3),MAX(CAST(RIGHT(acompanhamento_codigo,3) AS UNSIGNED)) FROM escrituras WHERE acompanhamento_codigo IS NOT NULL GROUP BY LEFT(acompanhamento_codigo,LENGTH(acompanhamento_codigo)-3) ON DUPLICATE KEY UPDATE last_value=VALUES(last_value)");
+    $pdo->exec("INSERT INTO tracking_sequences(prefix_month,sequence_value) SELECT LEFT(acompanhamento_codigo,LENGTH(acompanhamento_codigo)-3),MAX(CAST(RIGHT(acompanhamento_codigo,3) AS UNSIGNED)) FROM escrituras WHERE acompanhamento_codigo IS NOT NULL GROUP BY LEFT(acompanhamento_codigo,LENGTH(acompanhamento_codigo)-3) ON DUPLICATE KEY UPDATE sequence_value=VALUES(sequence_value)");
     $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
     $pdo->commit();
     $counts = [];
@@ -56,4 +56,3 @@ try {
     fwrite(STDERR, "Importacao cancelada: " . $error->getMessage() . PHP_EOL);
     exit(4);
 }
-

@@ -11,11 +11,11 @@ function tracking_prefix(array $data): string
 function next_tracking_code(PDO $pdo, string $prefix): string
 {
     $base = $prefix . date('Ym');
-    $pdo->prepare('INSERT IGNORE INTO tracking_sequences (prefix_month,last_value) VALUES (?, -1)')->execute([$base]);
-    $stmt = $pdo->prepare('SELECT last_value FROM tracking_sequences WHERE prefix_month=? FOR UPDATE');
+    $pdo->prepare('INSERT IGNORE INTO tracking_sequences (prefix_month,sequence_value) VALUES (?, -1)')->execute([$base]);
+    $stmt = $pdo->prepare('SELECT sequence_value FROM tracking_sequences WHERE prefix_month=? FOR UPDATE');
     $stmt->execute([$base]);
     $next = (int)$stmt->fetchColumn() + 1;
-    $pdo->prepare('UPDATE tracking_sequences SET last_value=? WHERE prefix_month=?')->execute([$next, $base]);
+    $pdo->prepare('UPDATE tracking_sequences SET sequence_value=? WHERE prefix_month=?')->execute([$next, $base]);
     return $base . str_pad((string)$next, 3, '0', STR_PAD_LEFT);
 }
 
@@ -308,4 +308,3 @@ function handle_acts(string $method, array $parts): never
     }
     fail('Rota nao encontrada', 404);
 }
-

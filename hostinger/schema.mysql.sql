@@ -203,6 +203,6 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 
 CREATE TABLE IF NOT EXISTS tracking_sequences (
   prefix_month VARCHAR(20) NOT NULL,
-  last_value INT NOT NULL DEFAULT -1,
+  sequence_value INT NOT NULL DEFAULT -1,
   PRIMARY KEY (prefix_month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
