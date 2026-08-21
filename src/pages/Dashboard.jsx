@@ -7,6 +7,8 @@ import {
   Activity,
 } from 'lucide-react';
 import Loading from '../components/ui/Loading';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
 import { escriturasAPI } from '../services/api';
 import api from '../services/api';
 import { CalendarioAgendamentos } from '../components/agendamentos/CalendarioAgendamentos';
@@ -298,16 +300,19 @@ export function Dashboard() {
   const [stats, setStats]         = useState(null);
   const [atividade, setAtividade] = useState(null);
   const [loading, setLoading]     = useState(true);
+  const [statsError, setStatsError] = useState(false);
   const [loadingAtiv, setLoadingAtiv] = useState(true);
   const [atividadeError, setAtividadeError] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
       setLoading(true);
+      setStatsError(false);
       const data = await escriturasAPI.getStats();
       setStats(data);
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
+      setStatsError(true);
     } finally {
       setLoading(false);
     }
@@ -340,19 +345,25 @@ export function Dashboard() {
     );
   }
 
+  if (!stats || statsError) {
+    return (
+      <Card>
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Não foi possível calcular as métricas.</p>
+          <Button onClick={loadStats}>Tentar novamente</Button>
+        </div>
+      </Card>
+    );
+  }
+
   const dadosPorTipo       = Object.entries(stats.porTipo).map(([nome, valor]) => ({ nome, valor }));
   const dadosPorEscrevente = Object.entries(stats.porEscrevente).map(([nome, valor]) => ({ nome, valor }));
-  const dadosPorMes = Object.entries(stats.porMes)
-    .sort((a, b) => {
-      const [mesA, anoA] = a[0].split('/');
-      const [mesB, anoB] = b[0].split('/');
-      return new Date(anoA, mesA) - new Date(anoB, mesB);
-    })
-    .slice(-12)
-    .map(([periodo, valor]) => ({ periodo, valor }));
-
-  const mesAtual    = dadosPorMes[dadosPorMes.length - 1]?.valor || 0;
-  const mesAnterior = dadosPorMes[dadosPorMes.length - 2]?.valor || 0;
+  const now = new Date();
+  const currentKey = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousKey = `${String(previousDate.getMonth() + 1).padStart(2, '0')}/${previousDate.getFullYear()}`;
+  const mesAtual = Number(stats.porMes[currentKey] || 0);
+  const mesAnterior = Number(stats.porMes[previousKey] || 0);
   const variacao    = mesAnterior > 0 ? ((mesAtual - mesAnterior) / mesAnterior) * 100 : 0;
   const variacaoPositiva = variacao >= 0;
 

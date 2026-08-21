@@ -86,8 +86,10 @@ class Meta {
         // Contar escrituras criadas pelo usuário no mês
         const producao = db.prepare(`
             SELECT COUNT(*) as total
-            FROM escrituras
-            WHERE created_by = ? AND mes = ? AND ano = ?
+            FROM escrituras e
+            JOIN users u ON u.id = ?
+            WHERE (e.created_by = u.id OR (e.created_by IS NULL AND LOWER(TRIM(e.escrevente)) = LOWER(TRIM(u.nome))))
+              AND e.mes = ? AND e.ano = ? AND e.archived_at IS NULL
         `).get(userId, mes, ano);
 
         const total = producao?.total || 0;
@@ -100,8 +102,10 @@ class Meta {
 
         const producaoAnterior = db.prepare(`
             SELECT COUNT(*) as total
-            FROM escrituras
-            WHERE created_by = ? AND mes = ? AND ano = ?
+            FROM escrituras e
+            JOIN users u ON u.id = ?
+            WHERE (e.created_by = u.id OR (e.created_by IS NULL AND LOWER(TRIM(e.escrevente)) = LOWER(TRIM(u.nome))))
+              AND e.mes = ? AND e.ano = ? AND e.archived_at IS NULL
         `).get(userId, mesAnterior, anoAnterior);
 
         const totalAnterior = producaoAnterior?.total || 0;
@@ -196,7 +200,8 @@ class Meta {
                 COUNT(e.id) as producao,
                 mi.meta_quantidade as meta
             FROM users u
-            LEFT JOIN escrituras e ON u.id = e.created_by AND e.mes = ? AND e.ano = ?
+            LEFT JOIN escrituras e ON (u.id = e.created_by OR (e.created_by IS NULL AND LOWER(TRIM(e.escrevente)) = LOWER(TRIM(u.nome))))
+              AND e.mes = ? AND e.ano = ? AND e.archived_at IS NULL
             LEFT JOIN metas_mensais mm ON mm.mes = ? AND mm.ano = ?
             LEFT JOIN metas_individuais mi ON u.id = mi.user_id AND mi.meta_mensal_id = mm.id
             WHERE u.ativo = 1

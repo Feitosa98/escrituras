@@ -19,7 +19,6 @@ export function GerenciarUsuarios() {
   const [formData, setFormData] = useState({
     nome: '',
     username: '',
-    email: '',
     senha: '',
     role: 'visualizador',
     ativo: true,
@@ -58,7 +57,6 @@ export function GerenciarUsuarios() {
     setFormData({
       nome: '',
       username: '',
-      email: '',
       senha: '',
       role: 'visualizador',
       ativo: true,
@@ -73,7 +71,6 @@ export function GerenciarUsuarios() {
     setFormData({
       nome: user.nome,
       username: user.username || '',
-      email: user.email?.endsWith('@sistema.local') ? '' : user.email,
       senha: '',
       role: user.role,
       ativo: user.ativo,
@@ -227,16 +224,9 @@ export function GerenciarUsuarios() {
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value.toLowerCase() })}
               placeholder="iago.feitosa"
+              hint="Este é o login de acesso. Não é necessário informar e-mail."
+              autoComplete="username"
               required
-            />
-          </div>
-
-          <div style={{ marginBottom: 'var(--spacing-md)' }}>
-            <Input
-              label="E-mail (opcional)"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
 

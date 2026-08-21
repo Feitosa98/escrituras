@@ -64,13 +64,14 @@ export function Login({ onLoginSuccess }) {
               <div className="access-input-wrap">
                 <UserRound size={19} />
                 <input
+                  type="text"
                   name="cartorio-usuario"
                   value={usuario}
                   onChange={(event) => setUsuario(event.target.value.toLowerCase())}
                   placeholder="nome.sobrenome"
                   pattern="[a-z0-9]+\.[a-z0-9]+"
                   title="Use o primeiro e o último nome separados por ponto. Exemplo: iago.feitosa"
-                  autoComplete="off"
+                  autoComplete="username"
                   autoCapitalize="none"
                   spellCheck="false"
                   autoFocus
@@ -82,7 +83,7 @@ export function Login({ onLoginSuccess }) {
               <span>Senha</span>
               <div className="access-input-wrap">
                 <LockKeyhole size={19} />
-                <input name="cartorio-senha" type={showPassword ? 'text' : 'password'} value={senha} onChange={(event) => setSenha(event.target.value)} placeholder="Digite sua senha" autoComplete="off" required />
+                <input name="cartorio-senha" type={showPassword ? 'text' : 'password'} value={senha} onChange={(event) => setSenha(event.target.value)} placeholder="Digite sua senha" autoComplete="current-password" required />
                 <button className="access-password-toggle" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
