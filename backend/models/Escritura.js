@@ -150,8 +150,31 @@ class Escritura {
         }
 
         query += ' ORDER BY e.created_at DESC';
+        if (filters.limit) {
+            query += ' LIMIT ? OFFSET ?';
+            params.push(filters.limit, filters.offset || 0);
+        }
 
         return db.prepare(query).all(...params);
+    }
+
+    static countAll(filters = {}) {
+        let query = 'SELECT COUNT(*) AS total FROM escrituras e WHERE 1=1';
+        const params = [];
+        if (filters.arquivadas === 'somente') query += ' AND e.archived_at IS NOT NULL';
+        else if (filters.arquivadas !== 'todas') query += ' AND e.archived_at IS NULL';
+        if (filters.tipo) { query += ' AND e.tipo = ?'; params.push(filters.tipo); }
+        if (filters.escrevente) { query += ' AND e.escrevente = ?'; params.push(filters.escrevente); }
+        if (filters.ano) { query += ' AND e.ano = ?'; params.push(filters.ano); }
+        if (filters.livro) { query += ' AND e.livro = ?'; params.push(filters.livro); }
+        if (filters.dataInicio) { query += ' AND e.selagem >= ?'; params.push(filters.dataInicio); }
+        if (filters.dataFim) { query += ' AND e.selagem <= ?'; params.push(filters.dataFim); }
+        if (filters.busca) {
+            query += ' AND (e.tipo LIKE ? OR e.outorgante LIKE ? OR e.outorgado LIKE ? OR e.livro LIKE ? OR e.folha LIKE ? OR e.protocolo LIKE ?)';
+            const term = `%${filters.busca}%`;
+            params.push(term, term, term, term, term, term);
+        }
+        return Number(db.prepare(query).get(...params).total || 0);
     }
 
     static findById(id) {

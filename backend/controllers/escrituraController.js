@@ -22,6 +22,16 @@ async function getAll(req, res) {
             arquivadas: req.query.arquivadas
         };
 
+        if (req.query.paginar === 'true') {
+            const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+            const limit = Math.min(100, Math.max(10, Number.parseInt(req.query.limit, 10) || 20));
+            const total = Escritura.countAll(filters);
+            const items = Escritura.findAll({ ...filters, limit, offset: (page - 1) * limit });
+            return res.json({
+                items: items.map(withoutTrackingPassword), total, page, limit,
+                pages: Math.max(1, Math.ceil(total / limit))
+            });
+        }
         const escrituras = Escritura.findAll(filters);
         res.json(escrituras.map(withoutTrackingPassword));
     } catch (error) {
@@ -38,10 +48,30 @@ async function getById(req, res) {
             return res.status(404).json({ error: 'Escritura não encontrada' });
         }
 
-        res.json(escritura);
+        res.json(withoutTrackingPassword(escritura));
     } catch (error) {
         console.error('Erro ao buscar escritura:', error);
         res.status(500).json({ error: 'Erro ao buscar escritura' });
+    }
+}
+
+async function getCredentials(req, res) {
+    try {
+        const escritura = Escritura.findByIdOrUuid(req.params.id);
+        if (!escritura) return res.status(404).json({ error: 'Escritura não encontrada' });
+        await auditLog(req, 'VIEW_TRACKING_CREDENTIALS', 'escrituras', escritura.id, null, {
+            acompanhamento_codigo: escritura.acompanhamento_codigo,
+            possui_senha: Boolean(escritura.senha_cliente)
+        });
+        res.set('Cache-Control', 'no-store');
+        res.json({
+            acompanhamento_codigo: escritura.acompanhamento_codigo,
+            senha_cliente: escritura.senha_cliente,
+            gera_acompanhamento: escritura.gera_acompanhamento
+        });
+    } catch (error) {
+        console.error('Erro ao buscar credenciais:', error);
+        res.status(500).json({ error: 'Erro ao buscar credenciais de acompanhamento' });
     }
 }
 
@@ -262,6 +292,48 @@ async function meuTrabalho(req, res) {
     }
 }
 
+async function notificacoes(req, res) {
+    try {
+        const hoje = new Intl.DateTimeFormat('en-CA', {
+            timeZone: process.env.APP_TIMEZONE || 'America/Manaus',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date());
+        const work = Escritura.getMeuTrabalho(req.user, hoje);
+        const items = [];
+        for (const ato of work.atos) {
+            const prazo = String(ato.prazo_data || '').slice(0, 10);
+            if (prazo && prazo < hoje) items.push({
+                id: `ato-atrasado-${ato.id}`, tipo: 'atraso', prioridade: 3,
+                titulo: 'Prazo vencido', descricao: `${ato.protocolo || ato.tipo} · ${ato.outorgante}`,
+                data: prazo, escritura_id: ato.id
+            });
+            else if (prazo === hoje) items.push({
+                id: `ato-hoje-${ato.id}`, tipo: 'prazo', prioridade: 2,
+                titulo: 'Prazo vence hoje', descricao: `${ato.protocolo || ato.tipo} · ${ato.outorgante}`,
+                data: prazo, escritura_id: ato.id
+            });
+            if (ato.status === 'Aguardando cliente') items.push({
+                id: `ato-cliente-${ato.id}`, tipo: 'cliente', prioridade: 1,
+                titulo: 'Aguardando o cliente', descricao: `${ato.protocolo || ato.tipo} · ${ato.outorgante}`,
+                data: ato.updated_at, escritura_id: ato.id
+            });
+        }
+        for (const tarefa of work.tarefas) {
+            const data = String(tarefa.data_agendada || '').slice(0, 10);
+            if (data <= hoje) items.push({
+                id: `tarefa-${tarefa.id}`, tipo: data < hoje ? 'atraso' : 'tarefa', prioridade: data < hoje ? 3 : 2,
+                titulo: data < hoje ? 'Tarefa atrasada' : 'Tarefa para hoje',
+                descricao: tarefa.titulo, data: tarefa.data_agendada, escritura_id: tarefa.escritura_id
+            });
+        }
+        items.sort((a, b) => b.prioridade - a.prioridade || String(a.data).localeCompare(String(b.data)));
+        res.json({ total: items.length, items: items.slice(0, 20) });
+    } catch (error) {
+        console.error('Erro ao carregar notificações:', error);
+        res.status(500).json({ error: 'Erro ao carregar notificações' });
+    }
+}
+
 async function updateStatus(req, res) {
     try {
         const { id } = req.params;
@@ -455,6 +527,7 @@ module.exports = {
     create,
     getAll,
     getById,
+    getCredentials,
     update,
     remove,
     getStats,
@@ -469,4 +542,5 @@ module.exports = {
     updateChecklistItem,
     removeChecklistItem,
     meuTrabalho,
+    notificacoes,
 };
