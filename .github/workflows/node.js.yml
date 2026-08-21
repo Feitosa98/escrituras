@@ -58,7 +58,17 @@ jobs:
       - name: Validate PHP syntax
         run: find hostinger -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Prepare MySQL database
-        run: mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test < hostinger/schema.mysql.sql
+        run: |
+          for attempt in {1..30}; do
+            if mysql -h 127.0.0.1 -u escrituras_app -papp_test_password -e "SELECT 1" escrituras_test >/dev/null 2>&1; then
+              sleep 3
+              if mysql -h 127.0.0.1 -u escrituras_app -papp_test_password -e "SELECT 1" escrituras_test >/dev/null 2>&1; then
+                break
+              fi
+            fi
+            sleep 2
+          done
+          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test < hostinger/schema.mysql.sql
       - name: Configure isolated test environment
         run: |
           cp hostinger/config.example.php hostinger/config.php
