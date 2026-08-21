@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS frontend-builder
+FROM node:22.23.2-bookworm-slim AS frontend-builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY src ./src
 COPY public ./public
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22.23.2-bookworm-slim AS runtime
 
 WORKDIR /app
 
@@ -23,5 +23,7 @@ COPY --from=frontend-builder /app/dist ./dist
 
 ENV NODE_ENV=production
 EXPOSE 3001
+
+USER node
 
 CMD ["node", "server.cjs"]

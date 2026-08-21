@@ -1,6 +1,10 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { auditLog } = require('../middleware/audit');
+const { validatePassword } = require('../security/passwordPolicy');
+
+const ALLOWED_ROLES = new Set(['admin', 'editor', 'visualizador']);
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function normalizeUsername(value) {
     return String(value || '')
@@ -58,6 +62,17 @@ async function create(req, res) {
 
         const emailFinal = String(email || `${username}@sistema.local`).trim().toLowerCase();
 
+        if (role && !ALLOWED_ROLES.has(role)) {
+            return res.status(400).json({ error: 'Nível de acesso inválido' });
+        }
+        if ((access_start && !TIME_PATTERN.test(access_start)) || (access_end && !TIME_PATTERN.test(access_end))) {
+            return res.status(400).json({ error: 'Horário de acesso inválido' });
+        }
+        const passwordError = validatePassword(senha, { username, email: emailFinal });
+        if (passwordError) {
+            return res.status(400).json({ error: passwordError });
+        }
+
         // Verificar se email já existe
         const existente = User.findByEmail(emailFinal);
         if (existente) {
@@ -114,7 +129,21 @@ async function update(req, res) {
         if (access_start) updateData.access_start = access_start;
         if (access_end) updateData.access_end = access_end;
 
+        if (role && !ALLOWED_ROLES.has(role)) {
+            return res.status(400).json({ error: 'Nível de acesso inválido' });
+        }
+        if ((access_start && !TIME_PATTERN.test(access_start)) || (access_end && !TIME_PATTERN.test(access_end))) {
+            return res.status(400).json({ error: 'Horário de acesso inválido' });
+        }
+
         if (senha) {
+            const passwordError = validatePassword(senha, {
+                username: updateData.username || userAntigo.username,
+                email: updateData.email || userAntigo.email
+            });
+            if (passwordError) {
+                return res.status(400).json({ error: passwordError });
+            }
             updateData.senha_hash = await bcrypt.hash(senha, 10);
         }
 
