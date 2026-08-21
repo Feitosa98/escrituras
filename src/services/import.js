@@ -221,17 +221,3 @@ export async function importarExcel(file) {
   });
 }
 
-/**
- * Importar dados da planilha existente (para uso inicial)
- */
-export async function importarPlanilhaExistente() {
-  try {
-    const response = await fetch('/CONTROLE DE DADOS ESCRITURA V2.xlsx');
-    const blob = await response.blob();
-    const file = new File([blob], 'CONTROLE DE DADOS ESCRITURA V2.xlsx');
-    return await importarExcel(file);
-  } catch (error) {
-    console.error('Erro ao importar planilha existente:', error);
-    throw error;
-  }
-}
