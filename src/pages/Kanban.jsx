@@ -298,24 +298,13 @@ export function Kanban() {
     setModalHist(escritura);
     setLoadingHist(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/consulta`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo: escritura.acompanhamento_codigo, senha: escritura.senha_cliente }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setHistorico(data.historico || []);
-      } else {
-        // Fallback: buscar via API autenticada
-        const token = localStorage.getItem('token');
-        const r2 = await fetch(
-          `${import.meta.env.VITE_API_URL || '/api'}/escrituras/${escritura.id}/historico`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (r2.ok) { const d = await r2.json(); setHistorico(d); }
-        else setHistorico([]);
-      }
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || '/api'}/escrituras/${escritura.id}/historico`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.ok) setHistorico(await response.json());
+      else setHistorico([]);
     } catch { setHistorico([]); }
     finally { setLoadingHist(false); }
   }

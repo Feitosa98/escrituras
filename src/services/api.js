@@ -77,6 +77,11 @@ export const usersAPI = {
     return response.data;
   },
 
+  getCredentials: async (id) => {
+    const response = await api.get(`/escrituras/${id}/credenciais`);
+    return response.data;
+  },
+
   create: async (userData) => {
     const response = await api.post('/users', userData);
     return response.data;
@@ -156,6 +161,16 @@ export const escriturasAPI = {
 
   getMeuTrabalho: async () => {
     const response = await api.get('/escrituras/meu-trabalho');
+    return response.data;
+  },
+
+  getPage: async (filters = {}, page = 1, limit = 20) => {
+    const response = await api.get('/escrituras', { params: { ...filters, paginar: true, page, limit } });
+    return response.data;
+  },
+
+  getNotifications: async () => {
+    const response = await api.get('/escrituras/notificacoes');
     return response.data;
   },
 

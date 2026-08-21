@@ -32,6 +32,7 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
   const [checklist, setChecklist] = useState([]);
   const [novoItem, setNovoItem] = useState('');
   const [savingOperation, setSavingOperation] = useState(false);
+  const [trackingCredentials, setTrackingCredentials] = useState(null);
   const [operation, setOperation] = useState({ status: '', responsavel_id: '', prazo_data: '', observacao: '' });
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const escrituraId = escritura?.id;
@@ -76,7 +77,12 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
     });
     fetchChecklist();
     usersAPI.getOptions().then((items) => setUsuarios(items.filter((u) => u.ativo))).catch(() => setUsuarios([]));
-  }, [escrituraId, escritura.status, escritura.responsavel_id, escritura.prazo_data, fetchChecklist]);
+    if (canEditOperation && escritura.gera_acompanhamento) {
+      escriturasAPI.getCredentials(escrituraId).then(setTrackingCredentials).catch(() => setTrackingCredentials(null));
+    } else {
+      setTrackingCredentials(null);
+    }
+  }, [escrituraId, escritura.status, escritura.responsavel_id, escritura.prazo_data, escritura.gera_acompanhamento, canEditOperation, fetchChecklist]);
 
   if (!escritura) return null;
 
@@ -141,7 +147,7 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
 
   const statusCfg = STATUS_CONFIG[escritura.status] || STATUS_CONFIG['Em andamento'];
   const StatusIcon = statusCfg.icon;
-  const temAcompanhamento = Boolean(escritura.acompanhamento_codigo && escritura.senha_cliente);
+  const temAcompanhamento = Boolean(trackingCredentials?.acompanhamento_codigo && trackingCredentials?.senha_cliente);
 
   function handleImprimir() {
     const w = window.open('', '_blank', 'width=800,height=900');
@@ -306,7 +312,7 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
             </div>
             <div class="cred-item">
               <div class="cred-label">${temAcompanhamento ? 'Senha de Acesso' : 'Data do Protocolo'}</div>
-              <div class="cred-val ${temAcompanhamento ? 'senha' : ''}">${temAcompanhamento ? escritura.senha_cliente : formatarData(escritura.protocolo_data || escritura.created_at)}</div>
+              <div class="cred-val ${temAcompanhamento ? 'senha' : ''}">${temAcompanhamento ? trackingCredentials.senha_cliente : formatarData(escritura.protocolo_data || escritura.created_at)}</div>
             </div>
           </div>
 
@@ -489,7 +495,7 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
                 padding: '0.25rem 0.875rem', borderRadius: '0.5rem',
               }}
             >
-              {escritura.senha_cliente}
+              {trackingCredentials?.senha_cliente}
             </span>
             <p style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: '0.25rem' }}>
               Entregar ao cliente com o comprovante

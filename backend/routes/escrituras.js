@@ -11,6 +11,7 @@ router.use(authenticateToken);
 router.get('/stats', requireVisualizador, escrituraController.getStats);
 router.get('/stats/atividade-hoje', requireVisualizador, escrituraController.atividadeHoje);
 router.get('/meu-trabalho', requireVisualizador, escrituraController.meuTrabalho);
+router.get('/notificacoes', requireVisualizador, escrituraController.notificacoes);
 router.post('/import', requireEditor, escrituraController.importBulk);
 
 // Rotas de leitura
@@ -18,6 +19,7 @@ router.get('/', requireVisualizador, escrituraController.getAll);
 router.get('/:id', requireVisualizador, escrituraController.getById);
 router.get('/:id/historico', requireVisualizador, escrituraController.getHistorico);
 router.get('/:id/checklist', requireVisualizador, escrituraController.getChecklist);
+router.get('/:id/credenciais', requireEditor, escrituraController.getCredentials);
 
 // Rotas de escrita
 router.post('/', requireEditor, escrituraController.create);
