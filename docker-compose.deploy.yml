@@ -2,7 +2,7 @@ name: sistema-escrituras
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     container_name: sistema-escrituras-db
     restart: unless-stopped
     environment:
@@ -19,6 +19,15 @@ services:
       retries: 10
     networks:
       - default
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
   app:
     build:
@@ -30,7 +39,8 @@ services:
       - .env
     environment:
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-escrituras_app}:${POSTGRES_PASSWORD}@sistema-escrituras-db:5432/${POSTGRES_DB:-sistema_escrituras}
+      DATABASE_URL: postgresql://${APP_DB_USER:-escrituras_runtime}:${APP_DB_PASSWORD}@sistema-escrituras-db:5432/${POSTGRES_DB:-sistema_escrituras}
+      RUN_DB_MIGRATIONS: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +50,21 @@ services:
       - default
       - hostdesk-proxy
       - traefik-proxy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 200
+    mem_limit: 512m
+    cpus: 1.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-proxy

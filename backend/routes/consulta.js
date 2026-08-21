@@ -22,6 +22,12 @@ router.post('/', (req, res) => {
         const codigoNorm = String(codigo).trim().toUpperCase();
         const senhaNorm = String(senha).trim().toUpperCase();
 
+        if (!/^(PP|EPTT|EPDV)\d{9}$/.test(codigoNorm) || !/^[A-Z2-9]{8,32}$/.test(senhaNorm)) {
+            return res.status(404).json({
+                error: 'Código de acompanhamento ou senha inválidos. Verifique os dados e tente novamente.'
+            });
+        }
+
         const escritura = Escritura.findByAcompanhamento(codigoNorm, senhaNorm);
 
         if (!escritura) {
@@ -34,22 +40,6 @@ router.post('/', (req, res) => {
     } catch (error) {
         console.error('Erro na consulta pública:', error);
         res.status(500).json({ error: 'Erro ao consultar protocolo' });
-    }
-});
-
-/**
- * Verifica se o código de acompanhamento existe, sem revelar dados.
- */
-router.get('/:protocolo', (req, res) => {
-    try {
-        const prot = String(req.params.protocolo).trim().toUpperCase();
-        const existe = require('../database')
-            .prepare(`SELECT id FROM escrituras WHERE acompanhamento_codigo = ? AND gera_acompanhamento = 1`)
-            .get(prot);
-
-        res.json({ exists: !!existe });
-    } catch (error) {
-        res.status(500).json({ error: 'Erro ao verificar protocolo' });
     }
 });
 

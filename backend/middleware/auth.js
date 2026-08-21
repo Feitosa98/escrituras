@@ -25,10 +25,14 @@ function authenticateToken(req, res, next) {
         try {
             const db = require('../database');
             const currentUser = db.prepare(`
-                SELECT ativo, access_start, access_end FROM users WHERE id = ?
+                SELECT ativo, role, access_start, access_end, updated_at FROM users WHERE id = ?
             `).get(user.id);
             if (!currentUser?.ativo) {
                 return res.status(401).json({ error: 'Usuário inativo' });
+            }
+            const updatedAtSeconds = Math.floor(new Date(currentUser.updated_at).getTime() / 1000);
+            if (Number.isFinite(updatedAtSeconds) && user.iat && updatedAtSeconds > user.iat) {
+                return res.status(401).json({ error: 'Sessão expirada após alteração da conta' });
             }
 
             const time = new Intl.DateTimeFormat('pt-BR', {
@@ -50,7 +54,7 @@ function authenticateToken(req, res, next) {
                 });
             }
 
-            req.user = user;
+            req.user = { ...user, role: currentUser.role };
             next();
         } catch (error) {
             return res.status(500).json({ error: 'Não foi possível validar o horário de acesso' });

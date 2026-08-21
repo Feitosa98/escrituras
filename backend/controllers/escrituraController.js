@@ -2,6 +2,13 @@ const Escritura = require('../models/Escritura');
 const { auditLog } = require('../middleware/audit');
 const { sendEscrituraStatusEmail } = require('../services/emailService');
 
+function withoutTrackingPassword(escritura) {
+    if (!escritura) return escritura;
+    const safe = { ...escritura };
+    delete safe.senha_cliente;
+    return safe;
+}
+
 async function getAll(req, res) {
     try {
         const filters = {
@@ -15,7 +22,7 @@ async function getAll(req, res) {
         };
 
         const escrituras = Escritura.findAll(filters);
-        res.json(escrituras);
+        res.json(escrituras.map(withoutTrackingPassword));
     } catch (error) {
         console.error('Erro ao listar escrituras:', error);
         res.status(500).json({ error: 'Erro ao listar escrituras' });
@@ -171,7 +178,10 @@ async function updateStatus(req, res) {
 async function getStats(req, res) {
     try {
         const stats = Escritura.getStats();
-        res.json(stats);
+        res.json({
+            ...stats,
+            recentes: Array.isArray(stats.recentes) ? stats.recentes.map(withoutTrackingPassword) : []
+        });
     } catch (error) {
         console.error('Erro ao buscar estatísticas:', error);
         res.status(500).json({ error: 'Erro ao buscar estatísticas' });

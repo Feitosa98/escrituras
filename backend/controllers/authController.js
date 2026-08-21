@@ -17,6 +17,9 @@ async function login(req, res) {
         if (typeof loginInformado !== 'string' || typeof senha !== 'string') {
             return res.status(400).json({ error: 'Formato inválido de credenciais' });
         }
+        if (loginInformado.length > 100 || senha.length > 256) {
+            return res.status(400).json({ error: 'Formato inválido de credenciais' });
+        }
 
         const loginNormalizado = loginInformado.trim().toLowerCase();
         if (!/^[a-z0-9]+\.[a-z0-9]+$/.test(loginNormalizado)) {
@@ -91,7 +94,7 @@ async function login(req, res) {
         });
     } catch (error) {
         console.error('Erro no login:', error);
-        res.status(500).json({ error: 'Erro ao fazer login: ' + error.message });
+        res.status(500).json({ error: 'Erro ao fazer login' });
     }
 }
 

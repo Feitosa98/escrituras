@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { escriturasAPI } from './api';
 
 /**
@@ -25,34 +25,37 @@ export async function exportarParaExcel(escrituras = null) {
       'Data Cadastro': e.created_at ? new Date(e.created_at).toLocaleDateString() : '',
     }));
 
-    // Criar workbook e worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(dataForExcel);
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Cartório Santiago';
+    const worksheet = workbook.addWorksheet('Escrituras');
+    const headers = Object.keys(dataForExcel[0] || {
+      'Tipo de Escritura': '', 'Data Selagem': '', Livro: '', Folha: '',
+      'Tipo Livro': '', Outorgante: '', Outorgado: '', Escrevente: '',
+      Mês: '', Ano: '', Observação: '', 'Data Cadastro': ''
+    });
+    const widths = [20, 15, 10, 15, 15, 30, 30, 15, 10, 10, 40, 15];
+    worksheet.columns = headers.map((header, index) => ({
+      header,
+      key: header,
+      width: widths[index]
+    }));
+    worksheet.addRows(dataForExcel);
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-    // ... (rest of excel unchanged)
-    // Ajustar largura das colunas
-    const colWidths = [
-      { wch: 20 }, // Tipo
-      { wch: 15 }, // Selagem
-      { wch: 10 }, // Livro
-      { wch: 15 }, // Folha
-      { wch: 15 }, // Tipo Livro
-      { wch: 30 }, // Outorgante
-      { wch: 30 }, // Outorgado
-      { wch: 15 }, // Escrevente
-      { wch: 10 }, // Mês
-      { wch: 10 }, // Ano
-      { wch: 40 }, // Observação
-      { wch: 15 }, // Criação
-    ];
-    ws['!cols'] = colWidths;
-
-    // Adicionar sheet ao workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Escrituras');
-
-    // Gerar arquivo
+    const bytes = await workbook.xlsx.writeBuffer();
     const fileName = `escrituras_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    const blob = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
 
     return { success: true, fileName };
   } catch (error) {

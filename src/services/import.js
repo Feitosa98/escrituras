@@ -1,23 +1,44 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+const MAX_IMPORT_ROWS = 5000;
+
+function cellValue(value) {
+  if (!value || typeof value !== 'object' || value instanceof Date) return value;
+  if (value.formula) return `=${value.formula}`;
+  if (Array.isArray(value.richText)) return value.richText.map((part) => part.text || '').join('');
+  if (value.text !== undefined) return value.text;
+  return value.result ?? '';
+}
 
 /**
  * Importar dados do arquivo Excel
  */
 export async function importarExcel(file) {
+  if (!file || file.size > MAX_IMPORT_BYTES) {
+    throw new Error('A planilha deve possuir no máximo 10 MB');
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(e.target.result);
+        const worksheet = workbook.worksheets[0];
+        if (!worksheet) throw new Error('A planilha não possui uma aba de dados');
+        if (worksheet.rowCount > MAX_IMPORT_ROWS) {
+          throw new Error(`A planilha deve possuir no máximo ${MAX_IMPORT_ROWS} linhas`);
+        }
 
-        // Pegar a primeira planilha
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-
-        // Converter para JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const jsonData = [];
+        worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+          const values = [];
+          for (let column = 1; column <= worksheet.columnCount; column += 1) {
+            values.push(cellValue(row.getCell(column).value));
+          }
+          jsonData[rowNumber - 1] = values;
+        });
 
         // Encontrar a linha do cabeçalho
         // Procurar por palavras-chave que indicam cabeçalho

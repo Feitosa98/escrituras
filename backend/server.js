@@ -64,17 +64,58 @@ function startServer() {
         }
 
         // Middlewares de segurança
+        app.disable('x-powered-by');
         app.use(helmet({
-            contentSecurityPolicy: false // Desabilitar para permitir carregar React
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'"],
+                    styleSrc: ["'self'", "'unsafe-inline'"],
+                    imgSrc: ["'self'", 'data:', 'blob:'],
+                    fontSrc: ["'self'", 'data:'],
+                    connectSrc: ["'self'"],
+                    objectSrc: ["'none'"],
+                    baseUri: ["'self'"],
+                    formAction: ["'self'"],
+                    frameAncestors: ["'self'"],
+                }
+            }
         }));
+        app.use((req, res, next) => {
+            res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+            if (req.path.startsWith('/api/')) {
+                res.setHeader('Cache-Control', 'no-store');
+            }
+            next();
+        });
 
         // Rate limiting
         const limiter = rateLimit({
             windowMs: 15 * 60 * 1000, // 15 minutos
-            max: 1000, // Limite aumentado para 1000 requisições por IP
-            message: 'Muitas requisições deste IP, tente novamente mais tarde'
+            max: 300,
+            standardHeaders: true,
+            legacyHeaders: false,
+            message: { error: 'Muitas requisições deste IP, tente novamente mais tarde' }
         });
         app.use('/api/', limiter);
+
+        const loginLimiter = rateLimit({
+            windowMs: 15 * 60 * 1000,
+            max: 10,
+            skipSuccessfulRequests: true,
+            standardHeaders: true,
+            legacyHeaders: false,
+            message: { error: 'Muitas tentativas de acesso. Aguarde 15 minutos e tente novamente.' }
+        });
+        const consultaLimiter = rateLimit({
+            windowMs: 15 * 60 * 1000,
+            max: 30,
+            standardHeaders: true,
+            legacyHeaders: false,
+            message: { error: 'Muitas tentativas de consulta. Aguarde 15 minutos e tente novamente.' }
+        });
+        app.use('/api/auth/login', loginLimiter);
+        app.use('/api/consulta', consultaLimiter);
 
         // CORS
         const allowedOrigins = (process.env.CORS_ORIGIN || '')
@@ -87,8 +128,8 @@ function startServer() {
         }));
 
         // Body parser
-        app.use(express.json());
-        app.use(express.urlencoded({ extended: true }));
+        app.use(express.json({ limit: '100kb' }));
+        app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
         // Logging de requisições
         app.use((req, res, next) => {
@@ -108,11 +149,12 @@ function startServer() {
         app.use('/api/consulta', consultaRoutes); // Rota pública - sem autenticação
         app.use('/api/agendamentos', agendamentoRoutes);
 
-        // Rota temporária para debug de client-side errors
-        app.post('/api/client-log', (req, res) => {
-            console.error('🔴 [CLIENT ERROR]:', req.body);
-            res.sendStatus(200);
-        });
+        if (process.env.NODE_ENV === 'development') {
+            app.post('/api/client-log', (req, res) => {
+                console.error('🔴 [CLIENT ERROR]:', req.body);
+                res.sendStatus(200);
+            });
+        }
 
         // Rota de health check
         app.get('/api/health', (req, res) => {
@@ -121,6 +163,10 @@ function startServer() {
                 timestamp: new Date().toISOString(),
                 version: '1.0.0'
             });
+        });
+
+        app.use('/api', (req, res) => {
+            res.status(404).json({ error: 'Rota não encontrada' });
         });
 
         // Servir arquivos estáticos do React (produção)

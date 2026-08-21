@@ -57,7 +57,9 @@ function transaction(callback) {
 }
 
 const db = { dialect: 'postgres', prepare, exec, transaction, pragma: () => [] };
-exec(require('fs').readFileSync(path.join(__dirname, 'postgres-schema.sql'), 'utf8'));
+if (process.env.RUN_DB_MIGRATIONS === 'true') {
+  exec(require('fs').readFileSync(path.join(__dirname, 'postgres-schema.sql'), 'utf8'));
+}
 const admin = prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1").get();
 if (!admin) {
   const password = process.env.ADMIN_PASSWORD;
