@@ -6,6 +6,7 @@ import Badge from '../components/ui/Badge';
 import { AgendamentoModal } from '../components/agendamentos/AgendamentoModal';
 import { useToast } from '../components/ui/Toast';
 import { escriturasAPI, usersAPI } from '../services/api';
+import { formatDateBR } from '../utils/date';
 
 const STATUS_CONFIG = {
   'Abertura de protocolo': { color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe', icon: Clock },
@@ -141,8 +142,7 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
   }
 
   const formatarData = (data) => {
-    if (!data) return '—';
-    return new Date(data).toLocaleDateString('pt-BR');
+    return formatDateBR(data);
   };
 
   const statusCfg = STATUS_CONFIG[escritura.status] || STATUS_CONFIG['Em andamento'];

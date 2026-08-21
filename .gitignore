@@ -3,6 +3,7 @@ node_modules/
 dist/
 hostinger/release/
 hostinger/config.php
+.hostinger-deploy-key*
 
 # Banco de Dados
 *.db
