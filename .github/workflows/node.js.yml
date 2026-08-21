@@ -87,8 +87,11 @@ jobs:
           curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/users/options
           USER=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"nome":"Usuário de Métricas","username":"metricas.usuario","senha":"Senha-Forte-Teste-2026!","role":"visualizador","access_start":"00:00","access_end":"23:59"}' http://127.0.0.1:8080/api/users)
           USERNAME=$(printf '%s' "$USER" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["username"]??"";')
+          USER_ID=$(printf '%s' "$USER" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["id"]??"";')
           test "$USERNAME" = "metricas.usuario"
-          curl -fsS -H 'Content-Type: application/json' -d '{"usuario":"metricas.usuario","senha":"Senha-Forte-Teste-2026!"}' http://127.0.0.1:8080/api/auth/login
+          VIS_LOGIN=$(curl -fsS -H 'Content-Type: application/json' -d '{"usuario":"metricas.usuario","senha":"Senha-Forte-Teste-2026!"}' http://127.0.0.1:8080/api/auth/login)
+          VIS_TOKEN=$(printf '%s' "$VIS_LOGIN" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["token"]??"";')
+          test -n "$USER_ID" && test -n "$VIS_TOKEN"
           ACT=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"tipo":"ESCRITURA PUBLICA","tipoAcompanhamento":"EPTT","selagem":"2026-08-21","livro":"TESTE-1","folha":"1","outorgante":"REQUERENTE TESTE","outorgado":"OUTORGADO TESTE","emailCliente":"teste@example.com","escrevente":"Administrador Sistema","tipoLivro":"NOTAS","mes":"08","ano":"2026"}' http://127.0.0.1:8080/api/escrituras)
           CODE=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["acompanhamento_codigo"]??"";')
           PASS=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["senha_cliente"]??"";')
@@ -96,8 +99,30 @@ jobs:
           test -n "$CODE" && test -n "$PASS" && test -n "$ID"
           DETAIL=$(curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/escrituras/$ID)
           ! printf '%s' "$DETAIL" | grep -q 'senha_cliente'
-          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test -e "UPDATE escrituras SET created_by=NULL WHERE id=$ID;"
-          METRICS=$(curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/metas/relatorio/individual/1/08/2026)
+          curl -fsS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/api/escrituras?busca=REQUERENTE&paginar=true&page=1&limit=20'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/escrituras/stats
+          curl -fsS -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"status":"Minuta / Solicitações","observacao":"Teste do fluxo"}' http://127.0.0.1:8080/api/escrituras/$ID/status
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/escrituras/$ID/historico
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/escrituras/$ID/checklist
+          ITEM=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"titulo":"Conferir documento de teste"}' http://127.0.0.1:8080/api/escrituras/$ID/checklist)
+          ITEM_ID=$(printf '%s' "$ITEM" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["id"]??"";')
+          curl -fsS -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"concluido":true}' http://127.0.0.1:8080/api/escrituras/$ID/checklist/$ITEM_ID
+          SCHEDULE=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"escritura_id\":$ID,\"user_id\":1,\"titulo\":\"Assinatura de teste\",\"data_agendada\":\"2026-08-22 10:00:00\"}" http://127.0.0.1:8080/api/agendamentos)
+          SCHEDULE_ID=$(printf '%s' "$SCHEDULE" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["id"]??"";')
+          curl -fsS -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"concluido":true}' http://127.0.0.1:8080/api/agendamentos/$SCHEDULE_ID
+          curl -fsS -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/api/agendamentos?mes=08&ano=2026'
+          FORBIDDEN=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $VIS_TOKEN" -H 'Content-Type: application/json' -d '{"tipo":"TESTE SEM PERMISSAO"}' http://127.0.0.1:8080/api/escrituras)
+          test "$FORBIDDEN" = "403"
+          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test -e "UPDATE escrituras SET created_by=NULL,escrevente='Usuário de Métricas' WHERE id=$ID;"
+          curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"trimestre\":\"T3\",\"ano\":2026,\"metaTotal\":3,\"metasIndividuais\":[{\"userId\":$USER_ID,\"quantidade\":3}]}" http://127.0.0.1:8080/api/metas
+          METRICS=$(curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/metas/relatorio/individual/$USER_ID/T3/2026)
           PRODUCTION=$(printf '%s' "$METRICS" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["producao"]??"";')
           test "$PRODUCTION" = "1"
+          TEAM=$(curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/metas/relatorio/equipe/T3/2026)
+          TEAM_PRODUCTION=$(printf '%s' "$TEAM" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["producao"]??"";')
+          test "$TEAM_PRODUCTION" = "1"
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/metas/ranking/T3/2026
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/metas/projecao/T3/2026
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/admin/tipos-escritura
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/audit
           curl -fsS -H 'Content-Type: application/json' -d "{\"codigo\":\"$CODE\",\"senha\":\"$PASS\"}" http://127.0.0.1:8080/api/consulta

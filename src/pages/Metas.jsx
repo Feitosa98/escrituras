@@ -17,9 +17,9 @@ export function Metas() {
   const isAdmin = hasPermission('admin');
 
   // Estado
-  const [activeTab, setActiveTab] = useState('individual'); // individual, equipe, config
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'equipe' : 'individual'); // individual, equipe, config
   const [loading, setLoading] = useState(true);
-  const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [trimestre, setTrimestre] = useState(`T${Math.ceil((new Date().getMonth() + 1) / 3)}`);
   const [ano, setAno] = useState(new Date().getFullYear());
 
   // Dados
@@ -35,29 +35,29 @@ export function Metas() {
 
   useEffect(() => {
     carregarDados();
-  }, [mes, ano, activeTab]);
+  }, [trimestre, ano, activeTab]);
 
   async function carregarDados() {
     try {
       setLoading(true);
 
       if (activeTab === 'individual') {
-        const dados = await metasAPI.getRelatorioIndividual(user.id, mes, ano);
+        const dados = await metasAPI.getRelatorioIndividual(user.id, trimestre, ano);
         setRelatorioIndividual(dados);
 
         // Carregar projeção também
-        const proj = await metasAPI.getProjecao(mes, ano);
+        const proj = await metasAPI.getProjecao(trimestre, ano);
         setProjecao(proj);
       } else if (activeTab === 'equipe') {
-        const dados = await metasAPI.getRelatorioEquipe(mes, ano);
+        const dados = await metasAPI.getRelatorioEquipe(trimestre, ano);
         setRelatorioEquipe(dados);
 
-        const rank = await metasAPI.getRanking(mes, ano);
+        const rank = await metasAPI.getRanking(trimestre, ano);
         setRanking(rank);
       } else if (activeTab === 'config' && isAdmin) {
         // Carregar meta atual e usuários para configuração
         try {
-          const meta = await metasAPI.getMeta(mes, ano);
+          const meta = await metasAPI.getMeta(trimestre, ano);
           setMetaConfig(meta);
           if (meta) setNovaMetaTotal(meta.meta_total);
         } catch (e) {
@@ -66,7 +66,7 @@ export function Metas() {
         }
 
         const users = await adminAPI.getUsers();
-        setUsersList(users.filter((u) => u.ativo));
+        setUsersList(users.filter((u) => u.ativo && u.role !== 'admin'));
       }
     } catch (error) {
       console.error(error);
@@ -84,21 +84,26 @@ export function Metas() {
     try {
       if (!novaMetaTotal) return;
 
-      // Distribuir igualmente por padrão
-      const metaPorPessoa = Math.floor(parseInt(novaMetaTotal) / usersList.length);
-      const metasIndividuais = usersList.map((u) => ({
+      if (usersList.length === 0) {
+        toast.error('Cadastre ao menos um escrevente ou coordenador ativo.');
+        return;
+      }
+      const total = parseInt(novaMetaTotal);
+      const metaPorPessoa = Math.floor(total / usersList.length);
+      const resto = total % usersList.length;
+      const metasIndividuais = usersList.map((u, index) => ({
         userId: u.id,
-        quantidade: metaPorPessoa,
+        quantidade: metaPorPessoa + (index < resto ? 1 : 0),
       }));
 
       await metasAPI.setMeta({
-        mes,
+        trimestre,
         ano,
-        metaTotal: parseInt(novaMetaTotal),
+        metaTotal: total,
         metasIndividuais,
       });
 
-      toast.success('Meta definida com sucesso!');
+      toast.success('Meta trimestral definida com sucesso!');
       carregarDados();
     } catch (error) {
       toast.error(error.message);
@@ -159,28 +164,20 @@ export function Metas() {
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Relatórios de Metas</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
-            Acompanhe a produção individual e da equipe
+            Acompanhe a produção individual e da equipe a cada três meses
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'center' }}>
-          <Select value={mes} onChange={(e) => setMes(e.target.value)} style={{ width: '140px' }}>
-            <option value="01">Janeiro</option>
-            <option value="02">Fevereiro</option>
-            <option value="03">Março</option>
-            <option value="04">Abril</option>
-            <option value="05">Maio</option>
-            <option value="06">Junho</option>
-            <option value="07">Julho</option>
-            <option value="08">Agosto</option>
-            <option value="09">Setembro</option>
-            <option value="10">Outubro</option>
-            <option value="11">Novembro</option>
-            <option value="12">Dezembro</option>
+          <Select value={trimestre} onChange={(e) => setTrimestre(e.target.value)} style={{ width: '190px' }}>
+            <option value="T1">1º trimestre · Jan–Mar</option>
+            <option value="T2">2º trimestre · Abr–Jun</option>
+            <option value="T3">3º trimestre · Jul–Set</option>
+            <option value="T4">4º trimestre · Out–Dez</option>
           </Select>
-          <Select value={ano} onChange={(e) => setAno(e.target.value)} style={{ width: '90px' }}>
-            <option value="2025">2025</option>
-            <option value="2026">2026</option>
-            <option value="2027">2027</option>
+          <Select value={ano} onChange={(e) => setAno(e.target.value)} style={{ width: '100px' }}>
+            {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
           </Select>
         </div>
       </div>
@@ -226,7 +223,7 @@ export function Metas() {
                   title="Minha Meta"
                   value={relatorioIndividual.meta}
                   icon={Target}
-                  subtext="Escrituras/mês"
+                  subtext="Escrituras/trimestre"
                 />
                 <StatCard
                   title="Realizado"
@@ -243,14 +240,14 @@ export function Metas() {
                 />
                 <StatCard
                   title="Projeção"
-                  value={projecao?.projecaoFimMes || '-'}
+                  value={projecao?.projecaoFimTrimestre ?? '-'}
                   icon={Calendar}
                   color="gray"
                   subtext="Estimativa final"
                 />
               </div>
 
-              <Card title="Progresso Mensal">
+              <Card title="Progresso Trimestral">
                 <div style={{ padding: 'var(--spacing-md) 0' }}>
                   <div
                     style={{
@@ -290,7 +287,7 @@ export function Metas() {
                   >
                     <h4 className="font-bold mb-2">Comparativo</h4>
                     <p className="text-secondary">
-                      Vs. Mês Anterior:
+                      Vs. Trimestre Anterior:
                       <span
                         style={{
                           color:
@@ -333,7 +330,7 @@ export function Metas() {
                   color="gray"
                 />
                 <StatCard
-                  title="Vs. Mês Anterior"
+                  title="Vs. Trimestre Anterior"
                   value={`${relatorioEquipe.variacao > 0 ? '+' : ''}${relatorioEquipe.variacao}%`}
                   icon={TrendingUp}
                   color={relatorioEquipe.variacao >= 0 ? 'success' : 'danger'}
@@ -409,7 +406,7 @@ export function Metas() {
                       <h3 className="text-4xl font-bold mb-2 text-primary">
                         {relatorioEquipe.percentual}%
                       </h3>
-                      <p className="text-secondary mb-4">da meta mensal atingida</p>
+                      <p className="text-secondary mb-4">da meta trimestral atingida</p>
                       <ProgressBar percentual={relatorioEquipe.percentual} color="success" />
                     </div>
                   </Card>
@@ -421,11 +418,11 @@ export function Metas() {
           {/* CONFIGURAÇÃO (ADMIN) */}
           {activeTab === 'config' && isAdmin && (
             <div className="grid grid-cols-1 gap-lg text-left">
-              <Card title={`Configurar Meta: ${mes}/${ano}`}>
+              <Card title={`Configurar Meta: ${trimestre}/${ano}`}>
                 <form onSubmit={handleSalvarMeta}>
                   <div style={{ marginBottom: 'var(--spacing-lg)' }}>
                     <Input
-                      label="Meta Total do Cartório"
+                      label="Meta Trimestral do Cartório"
                       type="number"
                       value={novaMetaTotal}
                       onChange={(e) => setNovaMetaTotal(e.target.value)}
@@ -433,12 +430,7 @@ export function Metas() {
                       required
                     />
                     <p className="text-sm text-secondary mt-2">
-                      A meta será distribuída igualmente entre os {usersList.length} usuários ativos
-                      (
-                      {usersList.length > 0
-                        ? Math.floor((parseInt(novaMetaTotal) || 0) / usersList.length)
-                        : 0}{' '}
-                      por pessoa).
+                      A meta será distribuída de forma equilibrada entre {usersList.length} escreventes e coordenadores ativos.
                     </p>
                   </div>
 
