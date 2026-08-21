@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { logoBase64 } from '../assets/logoData';
+import { formatDateBR } from '../utils/date';
 
 const navy = rgb(6 / 255, 26 / 255, 42 / 255);
 const gold = rgb(185 / 255, 160 / 255, 100 / 255);
@@ -134,7 +135,7 @@ export async function createReportPdf(records) {
         page.drawRectangle({ x: 32, y: cursor - 8, width: width - 64, height: 28, color: paper });
       }
       
-      const dataStr = record.selagem ? new Date(record.selagem).toLocaleDateString('pt-BR') : '-';
+      const dataStr = formatDateBR(record.selagem, '-');
       const livroFl = `${record.livro || '-'}/${record.folha || '-'}`;
       const outorgantesStr = record.outorgado ? `${record.outorgante} / ${record.outorgado}` : record.outorgante;
 

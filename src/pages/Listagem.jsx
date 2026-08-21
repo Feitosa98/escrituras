@@ -21,6 +21,7 @@ import { useToast } from '../components/ui/Toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { escriturasAPI } from '../services/api';
 import { exportarParaExcel } from '../services/export';
+import { formatDateBR } from '../utils/date';
 import '../styles/index.css';
 
 const ITEMS_POR_PAGINA = 20;
@@ -320,7 +321,7 @@ export function Listagem({ onEdit, onView }) {
                   <tr key={escritura.uuid || escritura.id}>
                     <td><Badge variant="primary">{escritura.tipo}</Badge></td>
                     <td style={{ color: 'var(--text-secondary)' }}>
-                      {escritura.selagem ? new Date(escritura.selagem).toLocaleDateString('pt-BR') : '—'}
+                      {formatDateBR(escritura.selagem)}
                     </td>
                     <td style={{ fontWeight: 600 }}>{escritura.livro}</td>
                     <td style={{ fontWeight: 600 }}>{escritura.folha}</td>

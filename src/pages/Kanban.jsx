@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { escriturasAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import Loading from '../components/ui/Loading';
+import { formatDateBR, parseDateValue } from '../utils/date';
 import {
   RefreshCw, Search, FileText, User,
   BookOpen, ChevronDown, Clock, X,
@@ -33,14 +34,13 @@ function getEtapaCfg(status) {
 
 function formatHora(dt) {
   if (!dt) return '';
-  const d = new Date(dt);
+  const d = parseDateValue(dt);
+  if (!d) return '';
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatData(dt) {
-  if (!dt) return '';
-  const d = new Date(dt);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatDateBR(dt, '', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // ── Modal de atualização de etapa ─────────────────────────────────────────────
