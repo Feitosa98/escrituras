@@ -31,6 +31,7 @@
 .access-input-wrap input::placeholder { color:#aab3c0; }
 .access-password-toggle { width:2rem; height:2rem; display:grid; place-items:center; border:0; background:transparent; color:#8995a7; cursor:pointer; }
 .access-error { padding:.72rem .85rem; border:1px solid #fecaca; border-radius:.65rem; background:#fff1f2; color:#b42335; font-size:.8rem; }
+.access-password-policy { padding:.75rem .9rem; border:1px solid rgba(180,139,49,.28); border-radius:.75rem; background:rgba(248,239,215,.55); color:#75591e; font-size:.76rem; line-height:1.55; }
 .access-submit { min-height:3.2rem; display:flex; align-items:center; justify-content:space-between; padding:0 1.05rem 0 1.2rem; border:0; border-radius:.72rem; background:linear-gradient(115deg,#102943,#071426); color:#fff; font:inherit; font-size:.86rem; font-weight:750; cursor:pointer; box-shadow:0 12px 24px rgba(7,20,38,.17); transition:.18s ease; }
 .access-submit:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 16px 28px rgba(7,20,38,.22); }
 .access-submit:disabled { opacity:.65; cursor:wait; }

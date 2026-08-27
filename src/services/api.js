@@ -31,11 +31,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestPath = String(error.config?.url || '');
+    if (error.response?.status === 401 && !['/auth/login', '/auth/change-password'].includes(requestPath)) {
       // Token expirado ou inválido — limpa e redireciona pela hash
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       // HashRouter usa /#/ — recarregar a página vai para a raiz autenticada
+      window.location.hash = '/';
+      window.location.reload();
+    }
+    if (error.response?.status === 403 && ['PASSWORD_EXPIRED', 'OUTSIDE_ACCESS_HOURS'].includes(error.response?.data?.code)) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.hash = '/';
       window.location.reload();
     }
@@ -52,6 +59,11 @@ export const authAPI = {
 
   me: async () => {
     const response = await api.get('/auth/me');
+    return response.data;
+  },
+
+  changePassword: async (senhaAtual, novaSenha) => {
+    const response = await api.post('/auth/change-password', { senha_atual: senhaAtual, nova_senha: novaSenha });
     return response.data;
   },
 

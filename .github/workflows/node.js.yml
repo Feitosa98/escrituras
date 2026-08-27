@@ -89,9 +89,23 @@ jobs:
           USERNAME=$(printf '%s' "$USER" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["username"]??"";')
           USER_ID=$(printf '%s' "$USER" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["id"]??"";')
           test "$USERNAME" = "metricas.usuario"
+          for attempt in 1 2 3 4 5; do
+            BAD_LOGIN=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"usuario":"metricas.usuario","senha":"Senha-Incorreta-2026!"}' http://127.0.0.1:8080/api/auth/login)
+            test "$BAD_LOGIN" = "401"
+          done
+          LOCKED_LOGIN=$(curl -sS -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"usuario":"metricas.usuario","senha":"Senha-Forte-Teste-2026!"}' http://127.0.0.1:8080/api/auth/login)
+          test "$LOCKED_LOGIN" = "429"
+          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test -e "UPDATE users SET failed_login_attempts=0,failed_login_window_started_at=NULL,locked_until=NULL WHERE id=$USER_ID;"
           VIS_LOGIN=$(curl -fsS -H 'Content-Type: application/json' -d '{"usuario":"metricas.usuario","senha":"Senha-Forte-Teste-2026!"}' http://127.0.0.1:8080/api/auth/login)
           VIS_TOKEN=$(printf '%s' "$VIS_LOGIN" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["token"]??"";')
-          test -n "$USER_ID" && test -n "$VIS_TOKEN"
+          MUST_CHANGE=$(printf '%s' "$VIS_LOGIN" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo !empty($d["must_change_password"])?"yes":"no";')
+          test -n "$USER_ID" && test -n "$VIS_TOKEN" && test "$MUST_CHANGE" = "yes"
+          CHANGED=$(curl -fsS -H "Authorization: Bearer $VIS_TOKEN" -H 'Content-Type: application/json' -d '{"senha_atual":"Senha-Forte-Teste-2026!","nova_senha":"Nova-Senha-Teste-2026!"}' http://127.0.0.1:8080/api/auth/change-password)
+          VIS_TOKEN=$(printf '%s' "$CHANGED" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["token"]??"";')
+          test -n "$VIS_TOKEN"
+          mysql -h 127.0.0.1 -u escrituras_app -papp_test_password escrituras_test -e "UPDATE users SET password_changed_at=DATE_SUB(NOW(),INTERVAL 2 DAY) WHERE id=$USER_ID;"
+          REUSED=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $VIS_TOKEN" -H 'Content-Type: application/json' -d '{"senha_atual":"Nova-Senha-Teste-2026!","nova_senha":"Senha-Forte-Teste-2026!"}' http://127.0.0.1:8080/api/auth/change-password)
+          test "$REUSED" = "400"
           ACT=$(curl -fsS -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"tipo":"ESCRITURA PUBLICA","tipoAcompanhamento":"EPTT","selagem":"2026-08-21","livro":"TESTE-1","folha":"1","outorgante":"REQUERENTE TESTE","outorgado":"OUTORGADO TESTE","emailCliente":"teste@example.com","escrevente":"Administrador Sistema","tipoLivro":"NOTAS","mes":"08","ano":"2026"}' http://127.0.0.1:8080/api/escrituras)
           CODE=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["acompanhamento_codigo"]??"";')
           PASS=$(printf '%s' "$ACT" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["senha_cliente"]??"";')

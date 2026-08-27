@@ -3,10 +3,12 @@ declare(strict_types=1);
 
 function user_safe(array $row): array
 {
-    unset($row['senha_hash'], $row['private_key_encrypted']);
+    unset($row['senha_hash'], $row['private_key_encrypted'], $row['password_version'], $row['failed_login_attempts'], $row['failed_login_window_started_at']);
     if (isset($row['ativo'])) $row['ativo'] = (int)$row['ativo'];
+    if (isset($row['must_change_password'])) $row['must_change_password'] = (bool)$row['must_change_password'];
     if (isset($row['access_start'])) $row['access_start'] = substr((string)$row['access_start'], 0, 5);
     if (isset($row['access_end'])) $row['access_end'] = substr((string)$row['access_end'], 0, 5);
+    if (isset($row['password_changed_at'])) $row['password_expires_at'] = date('c', strtotime('+30 days', strtotime((string)$row['password_changed_at'])));
     return $row;
 }
 
@@ -56,9 +58,12 @@ function handle_users(string $method, array $parts): never
         $check = db()->prepare('SELECT id FROM users WHERE username=? OR email=?');
         $check->execute([$username, $email]);
         if ($check->fetch()) fail('Nome de usuario ja cadastrado');
-        $stmt = db()->prepare('INSERT INTO users (uuid,nome,username,email,senha_hash,role,access_start,access_end) VALUES (?,?,?,?,?,?,?,?)');
-        $stmt->execute([uuid_v4(), $name, $username, $email, password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]), $role, $start, $end]);
-        $user = find_user((int)db()->lastInsertId());
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $stmt = db()->prepare('INSERT INTO users (uuid,nome,username,email,senha_hash,role,access_start,access_end,must_change_password) VALUES (?,?,?,?,?,?,?,?,1)');
+        $stmt->execute([uuid_v4(), $name, $username, $email, $hash, $role, $start, $end]);
+        $newId = (int)db()->lastInsertId();
+        save_password_history($newId, $hash);
+        $user = find_user($newId);
         audit('CREATE', 'users', $user['id'], null, ['nome' => $name, 'username' => $username, 'role' => $role, 'access_start' => $start, 'access_end' => $end]);
         json_response($user, 201);
     }
@@ -85,14 +90,24 @@ function handle_users(string $method, array $parts): never
             if ($dup->fetch()) fail('Nome de usuario ja cadastrado');
             $fields[] = 'username=?'; $values[] = $username;
         }
+        $newPasswordHash = null;
         if (!empty($data['senha'])) {
             if ($error = password_error($data['senha'], ['username' => $data['username'] ?? $before['username'], 'email' => $data['email'] ?? $before['email']])) fail($error);
-            $fields[] = 'senha_hash=?'; $values[] = password_hash($data['senha'], PASSWORD_BCRYPT, ['cost' => 12]);
+            if (password_was_used($id, $data['senha'])) fail('A nova senha nao pode repetir nenhuma das ultimas 5 senhas');
+            $newPasswordHash = password_hash($data['senha'], PASSWORD_BCRYPT, ['cost' => 12]);
+            $fields[] = 'senha_hash=?'; $values[] = $newPasswordHash;
+            $fields[] = 'password_changed_at=NOW()';
+            $fields[] = 'password_version=password_version+1';
+            $fields[] = 'must_change_password=1';
+            $fields[] = 'failed_login_attempts=0';
+            $fields[] = 'failed_login_window_started_at=NULL';
+            $fields[] = 'locked_until=NULL';
         }
         if ($fields) {
             $values[] = $id;
             db()->prepare('UPDATE users SET ' . implode(',', $fields) . ' WHERE id=?')->execute($values);
         }
+        if ($newPasswordHash) save_password_history($id, $newPasswordHash);
         $updated = find_user($id);
         audit('UPDATE', 'users', $id, $before, $updated);
         json_response($updated);

@@ -10,6 +10,9 @@ export function Login({ onLoginSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordChange, setPasswordChange] = useState(null);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -18,10 +21,35 @@ export function Login({ onLoginSuccess }) {
     try {
       const response = await authAPI.login(usuario, senha);
       localStorage.setItem('token', response.token);
+      if (response.must_change_password) {
+        setPasswordChange({ user: response.user, currentPassword: senha });
+        setSenha('');
+        return;
+      }
       localStorage.setItem('user', JSON.stringify(response.user));
       onLoginSuccess?.(response.user);
     } catch (err) {
       setError(err.response?.data?.error || 'Não foi possível entrar. Confira seus dados.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordChange(event) {
+    event.preventDefault();
+    setError('');
+    if (novaSenha !== confirmacao) {
+      setError('A confirmação não corresponde à nova senha.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await authAPI.changePassword(passwordChange.currentPassword, novaSenha);
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      onLoginSuccess?.(response.user);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Não foi possível alterar a senha.');
     } finally {
       setLoading(false);
     }
@@ -54,11 +82,11 @@ export function Login({ onLoginSuccess }) {
         </div>
         <div className="access-form-wrap">
           <header className="access-form-header">
-            <span className="access-form-kicker">Área interna</span>
-            <h2>Bem-vindo de volta</h2>
-            <p>Informe suas credenciais para acessar o sistema.</p>
+            <span className="access-form-kicker">{passwordChange ? 'Proteção da conta' : 'Área interna'}</span>
+            <h2>{passwordChange ? 'Crie uma nova senha' : 'Bem-vindo de volta'}</h2>
+            <p>{passwordChange ? 'Sua senha venceu ou é temporária. Atualize-a para continuar.' : 'Informe suas credenciais para acessar o sistema.'}</p>
           </header>
-          <form className="access-form" onSubmit={handleSubmit} autoComplete="off">
+          {!passwordChange ? <form className="access-form" onSubmit={handleSubmit} autoComplete="off">
             <label className="access-field">
               <span>Usuário</span>
               <div className="access-input-wrap">
@@ -93,7 +121,30 @@ export function Login({ onLoginSuccess }) {
             <button className="access-submit" type="submit" disabled={loading}>
               <span>{loading ? 'Validando acesso...' : 'Entrar no sistema'}</span>{!loading && <ArrowRight size={19} />}
             </button>
-          </form>
+          </form> : <form className="access-form" onSubmit={handlePasswordChange} autoComplete="off">
+            <label className="access-field">
+              <span>Nova senha</span>
+              <div className="access-input-wrap">
+                <LockKeyhole size={19} />
+                <input type={showPassword ? 'text' : 'password'} value={novaSenha} onChange={(event) => setNovaSenha(event.target.value)} autoComplete="new-password" minLength={8} required />
+                <button className="access-password-toggle" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+            <label className="access-field">
+              <span>Confirmar nova senha</span>
+              <div className="access-input-wrap">
+                <LockKeyhole size={19} />
+                <input type={showPassword ? 'text' : 'password'} value={confirmacao} onChange={(event) => setConfirmacao(event.target.value)} autoComplete="new-password" minLength={8} required />
+              </div>
+            </label>
+            <div className="access-password-policy">Mínimo de 8 caracteres, com letra maiúscula, minúscula, número e caractere especial. Não reutilize nenhuma das últimas 5 senhas.</div>
+            {error && <div className="access-error" role="alert">{error}</div>}
+            <button className="access-submit" type="submit" disabled={loading}>
+              <span>{loading ? 'Atualizando senha...' : 'Atualizar e entrar'}</span>{!loading && <ArrowRight size={19} />}
+            </button>
+          </form>}
           <div className="access-divider"><span>ou</span></div>
           <Link className="access-public-link" to="/consulta">
             <span className="access-public-link__icon"><FileSearch size={20} /></span>

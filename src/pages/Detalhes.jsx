@@ -152,12 +152,17 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
 
   function handleImprimir() {
     const w = window.open('', '_blank', 'width=800,height=900');
+    if (!w) return;
+    w.opener = null;
+    const safe = (value, fallback = '—') => String(value || fallback).replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+    }[char]));
     w.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Comprovante Notarial — ${escritura.protocolo}</title>
+        <title>Comprovante Notarial — ${safe(escritura.protocolo)}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap');
           @page { size: A4; margin: 15mm; }
@@ -309,46 +314,46 @@ export function Detalhes({ escritura, onClose, onEdit, onUpdated }) {
           <div class="cred-box">
             <div class="cred-item highlight">
               <div class="cred-label">${temAcompanhamento ? 'Código de Acompanhamento' : 'Número de Protocolo'}</div>
-              <div class="cred-val prot">${temAcompanhamento ? escritura.acompanhamento_codigo : escritura.protocolo || 'N/A'}</div>
+              <div class="cred-val prot">${safe(temAcompanhamento ? escritura.acompanhamento_codigo : escritura.protocolo, 'N/A')}</div>
             </div>
             <div class="cred-item">
               <div class="cred-label">${temAcompanhamento ? 'Senha de Acesso' : 'Data do Protocolo'}</div>
-              <div class="cred-val ${temAcompanhamento ? 'senha' : ''}">${temAcompanhamento ? trackingCredentials.senha_cliente : formatarData(escritura.protocolo_data || escritura.created_at)}</div>
+              <div class="cred-val ${temAcompanhamento ? 'senha' : ''}">${safe(temAcompanhamento ? trackingCredentials.senha_cliente : formatarData(escritura.protocolo_data || escritura.created_at))}</div>
             </div>
           </div>
 
           <table class="table-info">
             <tr>
               <th>Ato Notarial</th>
-              <td>${escritura.tipo || '—'}</td>
+              <td>${safe(escritura.tipo)}</td>
             </tr>
             <tr>
               <th>Outorgante / Parte</th>
-              <td>${escritura.outorgante || '—'}</td>
+              <td>${safe(escritura.outorgante)}</td>
             </tr>
             <tr>
               <th>Outorgado</th>
-              <td>${escritura.outorgado || '—'}</td>
+              <td>${safe(escritura.outorgado)}</td>
             </tr>
             <tr>
               <th>Livro & Folha</th>
-              <td>Livro ${escritura.livro || '—'} &nbsp;|&nbsp; Folha ${escritura.folha || '—'} (${escritura.tipoLivro || escritura.tipo_livro || 'Notas'})</td>
+              <td>Livro ${safe(escritura.livro)} &nbsp;|&nbsp; Folha ${safe(escritura.folha)} (${safe(escritura.tipoLivro || escritura.tipo_livro, 'Notas')})</td>
             </tr>
             <tr>
               <th>Escrevente Responsável</th>
-              <td>${escritura.escrevente || '—'}</td>
+              <td>${safe(escritura.escrevente)}</td>
             </tr>
             <tr>
               <th>Status Atual</th>
-              <td>${escritura.status || 'Em andamento'}</td>
+              <td>${safe(escritura.status, 'Em andamento')}</td>
             </tr>
             <tr>
               <th>Registro feito por</th>
-              <td>${escritura.usuario_fez || '—'}</td>
+              <td>${safe(escritura.usuario_fez)}</td>
             </tr>
             <tr>
               <th>Assinado por</th>
-              <td>${escritura.usuario_assinou || 'Ainda não assinado'}</td>
+              <td>${safe(escritura.usuario_assinou, 'Ainda não assinado')}</td>
             </tr>
           </table>
 

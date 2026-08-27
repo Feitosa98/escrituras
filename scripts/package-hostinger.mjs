@@ -12,6 +12,7 @@ await cp(path.join(root, 'dist'), publicHtml, { recursive: true });
 await cp(path.join(hostinger, 'public_html', '.htaccess'), path.join(publicHtml, '.htaccess'));
 await cp(path.join(hostinger, 'public_html', 'api'), path.join(publicHtml, 'api'), { recursive: true });
 await cp(path.join(hostinger, 'schema.mysql.sql'), path.join(release, 'schema.mysql.sql'));
+await cp(path.join(hostinger, 'migrations'), path.join(release, 'migrations'), { recursive: true });
 await cp(path.join(hostinger, 'config.example.php'), path.join(release, 'config.example.php'));
 await cp(path.join(hostinger, 'import-snapshot.php'), path.join(release, 'import-snapshot.php'));
 await cp(path.join(hostinger, 'README.md'), path.join(release, 'README.md'));
