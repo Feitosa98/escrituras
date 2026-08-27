@@ -12,6 +12,12 @@ CREATE TABLE IF NOT EXISTS users (
   ativo TINYINT(1) NOT NULL DEFAULT 1,
   access_start TIME NOT NULL DEFAULT '07:50:00',
   access_end TIME NOT NULL DEFAULT '18:30:00',
+  password_changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  password_version INT UNSIGNED NOT NULL DEFAULT 1,
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+  failed_login_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  failed_login_window_started_at DATETIME NULL,
+  locked_until DATETIME NULL,
   public_key MEDIUMTEXT NULL,
   private_key_encrypted MEDIUMTEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -20,6 +26,16 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uq_users_uuid (uuid),
   UNIQUE KEY uq_users_username (username),
   UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS password_history (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  senha_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_password_history_user_created (user_id, created_at),
+  CONSTRAINT fk_password_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS escrituras (

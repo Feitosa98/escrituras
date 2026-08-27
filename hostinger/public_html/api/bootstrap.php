@@ -68,6 +68,7 @@ function json_response(mixed $data = null, int $status = 200, array $headers = [
     header('X-Frame-Options: DENY');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    if (!array_key_exists('Cache-Control', $headers)) header('Cache-Control: no-store');
     foreach ($headers as $name => $value) header($name . ': ' . $value);
     if ($status !== 204) {
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -137,6 +138,7 @@ function jwt_create(array $user): string
     $payload = [
         'sub' => (int)$user['id'],
         'role' => $user['role'],
+        'pwd' => (int)($user['password_version'] ?? 1),
         'iat' => $now,
         'exp' => $now + (int)config('token_ttl_seconds', 28800),
     ];
@@ -165,23 +167,47 @@ function bearer_token(): ?string
     return preg_match('/^Bearer\s+(.+)$/i', $header, $matches) ? trim($matches[1]) : null;
 }
 
-function current_user(bool $required = true): ?array
+function access_time_allowed(array $user): bool
+{
+    $toMinutes = static function (string $time): int {
+        [$hour, $minute] = array_map('intval', explode(':', substr($time, 0, 5)));
+        return $hour * 60 + $minute;
+    };
+    $current = (int)date('H') * 60 + (int)date('i');
+    $start = $toMinutes((string)($user['access_start'] ?: '07:50'));
+    $end = $toMinutes((string)($user['access_end'] ?: '18:30'));
+    return $start <= $end ? ($current >= $start && $current <= $end) : ($current >= $start || $current <= $end);
+}
+
+function password_is_expired(array $user): bool
+{
+    if ((int)($user['must_change_password'] ?? 0) === 1) return true;
+    $changed = strtotime((string)($user['password_changed_at'] ?? ''));
+    return !$changed || $changed < strtotime('-30 days');
+}
+
+function current_user(bool $required = true, bool $allowPasswordExpired = false): ?array
 {
     static $loaded = false;
     static $user = null;
-    if ($loaded) {
-        if ($required && !$user) fail('Token de acesso invalido ou expirado', 401);
-        return $user;
-    }
-    $loaded = true;
-    $token = bearer_token();
-    $payload = $token ? jwt_decode($token) : null;
-    if ($payload) {
-        $stmt = db()->prepare('SELECT id, uuid, nome, username, email, role, ativo, TIME_FORMAT(access_start, "%H:%i") access_start, TIME_FORMAT(access_end, "%H:%i") access_end, created_at, updated_at FROM users WHERE id = ? AND ativo = 1');
-        $stmt->execute([(int)$payload['sub']]);
-        $user = $stmt->fetch() ?: null;
+    if (!$loaded) {
+        $loaded = true;
+        $token = bearer_token();
+        $payload = $token ? jwt_decode($token) : null;
+        if ($payload) {
+            $stmt = db()->prepare('SELECT id, uuid, nome, username, email, role, ativo, TIME_FORMAT(access_start, "%H:%i") access_start, TIME_FORMAT(access_end, "%H:%i") access_end, password_changed_at, password_version, must_change_password, created_at, updated_at FROM users WHERE id = ? AND ativo = 1');
+            $stmt->execute([(int)$payload['sub']]);
+            $user = $stmt->fetch() ?: null;
+            if ($user && (int)($payload['pwd'] ?? 0) !== (int)$user['password_version']) $user = null;
+        }
     }
     if ($required && !$user) fail('Token de acesso invalido ou expirado', 401);
+    if ($user && !access_time_allowed($user)) {
+        fail(sprintf('Acesso permitido somente das %s as %s', $user['access_start'], $user['access_end']), 403, ['code' => 'OUTSIDE_ACCESS_HOURS']);
+    }
+    if ($user && !$allowPasswordExpired && password_is_expired($user)) {
+        fail('Sua senha expirou e deve ser alterada para continuar', 403, ['code' => 'PASSWORD_EXPIRED']);
+    }
     return $user;
 }
 
@@ -292,8 +318,11 @@ function normalize_username(string $value): string
 function password_error(mixed $password, array $context = []): ?string
 {
     if (!is_string($password)) return 'A senha deve ser informada';
-    if (strlen($password) < 15) return 'A senha deve possuir pelo menos 15 caracteres';
+    if (strlen($password) < 8) return 'A senha deve possuir pelo menos 8 caracteres';
     if (strlen($password) > 128) return 'A senha deve possuir no maximo 128 caracteres';
+    if (!preg_match('/[a-z]/', $password) || !preg_match('/[A-Z]/', $password) || !preg_match('/\d/', $password) || !preg_match('/[^a-zA-Z0-9]/', $password)) {
+        return 'Use letra maiuscula, minuscula, numero e caractere especial';
+    }
     $normalized = strtolower(trim($password));
     $blocked = ['admin123', 'administrador', 'password', 'password123', 'senha123', '123456789012345', 'qwertyuiop'];
     if (in_array($normalized, $blocked, true)) return 'Escolha uma senha menos previsivel';
@@ -303,6 +332,22 @@ function password_error(mixed $password, array $context = []): ?string
         }
     }
     return null;
+}
+
+function password_was_used(int $userId, string $password): bool
+{
+    $stmt = db()->prepare('SELECT senha_hash FROM password_history WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 5');
+    $stmt->execute([$userId]);
+    foreach ($stmt->fetchAll() as $row) {
+        if (password_verify($password, (string)$row['senha_hash'])) return true;
+    }
+    return false;
+}
+
+function save_password_history(int $userId, string $hash): void
+{
+    db()->prepare('INSERT INTO password_history (user_id,senha_hash) VALUES (?,?)')->execute([$userId, $hash]);
+    db()->prepare('DELETE FROM password_history WHERE user_id=? AND id NOT IN (SELECT id FROM (SELECT id FROM password_history WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 5) recent)')->execute([$userId, $userId]);
 }
 
 function find_act(string|int $identifier, bool $includePassword = false): ?array
